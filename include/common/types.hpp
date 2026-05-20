@@ -11,4 +11,4 @@ namespace gmres
     using Vector = std::vector<Scalar>;
 }
 
-#endifcmak
+#endif

@@ -69,6 +69,23 @@ Purpose:
 
 ---
 
+## Current Status
+
+- [x] Project skeleton created
+- [x] Basic CMake build configured
+- [x] `run_seq` executable builds
+- [ ] Basic vector operations
+- [ ] CSR sparse matrix storage
+- [ ] Sparse matrix-vector multiplication
+- [ ] Modified Gram-Schmidt orthogonalization
+- [ ] Arnoldi iteration
+- [ ] Givens rotations
+- [ ] Sequential restarted GMRES
+- [ ] MPI-parallel GMRES
+- [ ] Communication-avoiding s-step GMRES
+
+---
+
 ## Repository Structure
 
 ```text
@@ -157,3 +174,27 @@ Communication-avoiding-S-step-GMRES/
     ├── benchmark.sh
     ├── scaling_tests.sh
     └── run_tests.sh
+```
+
+---
+
+## Build
+
+From the project root:
+
+```bash
+cmake -S . -B build
+cmake --build build
+```
+
+## README Outline
+
+- Project overview
+- Project goals
+- Planned solver implementations
+- Current status
+- Repository structure
+- Build
+- Run
+- Roadmap
+- Known limitations

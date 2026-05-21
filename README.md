@@ -74,9 +74,9 @@ Purpose:
 - [x] Project skeleton created
 - [x] Basic CMake build configured
 - [x] `run_seq` executable builds
-- [ ] Basic vector operations
-- [ ] CSR sparse matrix storage
-- [ ] Sparse matrix-vector multiplication
+- [x] Basic vector operations
+- [x] CSR sparse matrix storage
+- [x] Sparse matrix-vector multiplication
 - [ ] Modified Gram-Schmidt orthogonalization
 - [ ] Arnoldi iteration
 - [ ] Givens rotations

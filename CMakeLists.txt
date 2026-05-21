@@ -24,3 +24,11 @@ add_executable(test_vector_ops
 )
 
 target_include_directories(test_vector_ops PRIVATE include)
+
+add_executable(test_io
+    tests/test_io.cpp
+    src/common/io.cpp
+    src/common/sparse_matrix.cpp
+)
+
+target_include_directories(test_io PRIVATE include)

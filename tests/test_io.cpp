@@ -3,7 +3,7 @@
 
 #include <cassert>
 #include <cmath>
-#include <iostream>
+#include <print>
 
 int main()
 {
@@ -27,7 +27,7 @@ int main()
 
     gmres::write_vector_csv("data/outputs/test_solution.csv", y);
 
-    std::cout << "IO test passed.\n";
+    std::println("IO test passed.");
 
     return 0;
 }

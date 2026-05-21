@@ -2,7 +2,7 @@
 
 #include <cassert>
 #include <cmath>
-#include <iostream>
+#include <print>
 #include <stdexcept>
 
 int main()
@@ -40,7 +40,7 @@ int main()
 
     assert(caught_error);
 
-    std::cout << "Vector operations test passed.\n";
+    std::println("Vector operations test passed.");
 
     return 0;
 }

@@ -1,7 +1,7 @@
 #include "common/sparse_matrix.hpp"
 
 #include <cassert>
-#include <iostream>
+#include <print>
 
 int main()
 {
@@ -32,7 +32,7 @@ int main()
     assert(y[1] == 18.0);
     assert(y[2] == 23.0);
 
-    std::cout << "Sparse matrix test passed.\n";
+    std::println("Sparse matrix test passed.");
 
     return 0;
 }

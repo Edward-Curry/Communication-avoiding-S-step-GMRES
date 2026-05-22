@@ -52,3 +52,14 @@ add_executable(test_orthogonalization
 
 target_include_directories(test_orthogonalization PRIVATE include)
 target_link_libraries(test_orthogonalization PRIVATE stdc++exp)
+
+add_executable(test_arnoldi_seq
+    tests/test_arnoldi_seq.cpp
+    src/sequential/arnoldi_seq.cpp
+    src/common/orthogonalization.cpp
+    src/common/vector_ops.cpp
+    src/common/sparse_matrix.cpp
+)
+
+target_include_directories(test_arnoldi_seq PRIVATE include)
+target_link_libraries(test_arnoldi_seq PRIVATE stdc++exp)

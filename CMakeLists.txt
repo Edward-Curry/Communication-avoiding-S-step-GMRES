@@ -43,3 +43,12 @@ add_executable(test_givens
 
 target_include_directories(test_givens PRIVATE include)
 target_link_libraries(test_givens PRIVATE stdc++exp)
+
+add_executable(test_orthogonalization
+    tests/test_orthogonalization.cpp
+    src/common/orthogonalization.cpp
+    src/common/vector_ops.cpp
+)
+
+target_include_directories(test_orthogonalization PRIVATE include)
+target_link_libraries(test_orthogonalization PRIVATE stdc++exp)

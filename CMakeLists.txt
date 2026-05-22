@@ -63,3 +63,16 @@ add_executable(test_arnoldi_seq
 
 target_include_directories(test_arnoldi_seq PRIVATE include)
 target_link_libraries(test_arnoldi_seq PRIVATE stdc++exp)
+
+add_executable(test_gmres_seq
+    tests/test_gmres_seq.cpp
+    src/sequential/gmres_seq.cpp
+    src/sequential/gmres_seq_step.cpp
+    src/common/givens.cpp
+    src/common/orthogonalization.cpp
+    src/common/vector_ops.cpp
+    src/common/sparse_matrix.cpp
+)
+
+target_include_directories(test_gmres_seq PRIVATE include)
+target_link_libraries(test_gmres_seq PRIVATE stdc++exp)

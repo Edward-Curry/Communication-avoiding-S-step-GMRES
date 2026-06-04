@@ -4,6 +4,7 @@
 #include "common/types.hpp"
 
 #include <mpi.h>
+#include <vector>
 
 namespace gmres
 {
@@ -33,6 +34,8 @@ namespace gmres
         Vector local_values_;
         MPI_Comm comm_ = MPI_COMM_WORLD;
     };
+
+    using DistributedVectorList = std::vector<DistributedVector>;
 }
 
 #endif

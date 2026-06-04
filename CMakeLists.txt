@@ -76,3 +76,24 @@ add_executable(test_gmres_seq
 
 target_include_directories(test_gmres_seq PRIVATE include)
 target_link_libraries(test_gmres_seq PRIVATE stdc++exp)
+
+find_package(MPI REQUIRED)
+
+add_executable(test_gmres_mpi
+    tests/test_gmres_mpi.cpp
+    src/parallel/gmres_mpi.cpp
+    src/parallel/gmres_mpi_step.cpp
+    src/parallel/distributed_vector.cpp
+    src/parallel/distributed_vector_ops.cpp
+    src/parallel/distributed_sparse_matrix.cpp
+    src/parallel/distributed_orthogonalization.cpp
+    src/common/givens.cpp
+)
+
+target_include_directories(test_gmres_mpi PRIVATE include)
+
+target_link_libraries(test_gmres_mpi
+    PRIVATE
+    MPI::MPI_CXX
+    stdc++exp
+)

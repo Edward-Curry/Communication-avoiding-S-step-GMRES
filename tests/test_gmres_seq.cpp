@@ -58,6 +58,6 @@ int main()
 
     std::println("Sequential GMRES test passed.");
 
-    return 0;git status
-    
+    return 0;
+
 }

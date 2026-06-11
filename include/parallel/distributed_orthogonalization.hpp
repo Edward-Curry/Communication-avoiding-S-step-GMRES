@@ -2,7 +2,6 @@
 #define PARALLEL_DISTRIBUTED_ORTHOGONALIZATION_HPP
 
 #include "common/types.hpp"
-#include "parallel/arnoldi_mpi.hpp"
 #include "parallel/distributed_vector.hpp"
 
 namespace gmres

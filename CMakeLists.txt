@@ -97,3 +97,19 @@ target_link_libraries(test_gmres_mpi
     MPI::MPI_CXX
     stdc++exp
 )
+
+add_executable(test_gmres_ca
+    tests/test_gmres_ca.cpp
+    src/communication_avoiding/gmres_ca.cpp
+    src/communication_avoiding/gmres_ca_step.cpp
+    src/communication_avoiding/sstep_arnoldi.cpp
+    src/communication_avoiding/block_orthogonalization.cpp
+    src/communication_avoiding/krylov_basis.cpp
+    src/communication_avoiding/polynomial_basis.cpp
+    src/common/givens.cpp
+    src/common/vector_ops.cpp
+    src/common/sparse_matrix.cpp
+)
+
+target_include_directories(test_gmres_ca PRIVATE include)
+target_link_libraries(test_gmres_ca PRIVATE stdc++exp)

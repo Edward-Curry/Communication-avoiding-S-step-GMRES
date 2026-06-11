@@ -10,6 +10,8 @@ namespace gmres
         Index restart = 30;
         Index max_iterations = 1000;
         Scalar tolerance = 1e-8;
+        Index restart_blocks = 6;
+        Index s_step = 5;
         bool verbose = true;
     };
 }

@@ -113,3 +113,44 @@ add_executable(test_gmres_ca
 
 target_include_directories(test_gmres_ca PRIVATE include)
 target_link_libraries(test_gmres_ca PRIVATE stdc++exp)
+
+add_executable(test_sstep_arnoldi_mpi
+    tests/test_sstep_arnoldi_mpi.cpp
+    src/communication_avoiding/sstep_arnoldi_mpi.cpp
+    src/communication_avoiding/krylov_basis_mpi.cpp
+    src/communication_avoiding/block_orthogonalization_mpi.cpp
+    src/communication_avoiding/polynomial_basis.cpp
+    src/parallel/distributed_vector.cpp
+    src/parallel/distributed_vector_ops.cpp
+    src/parallel/distributed_sparse_matrix.cpp
+)
+
+target_include_directories(test_sstep_arnoldi_mpi PRIVATE include)
+
+target_link_libraries(test_sstep_arnoldi_mpi
+    PRIVATE
+    MPI::MPI_CXX
+    stdc++exp
+)
+
+add_executable(test_gmres_ca_mpi
+    tests/test_gmres_ca_mpi.cpp
+    src/communication_avoiding/gmres_ca_mpi.cpp
+    src/communication_avoiding/gmres_ca_mpi_step.cpp
+    src/communication_avoiding/sstep_arnoldi_mpi.cpp
+    src/communication_avoiding/krylov_basis_mpi.cpp
+    src/communication_avoiding/block_orthogonalization_mpi.cpp
+    src/communication_avoiding/polynomial_basis.cpp
+    src/parallel/distributed_vector.cpp
+    src/parallel/distributed_vector_ops.cpp
+    src/parallel/distributed_sparse_matrix.cpp
+    src/common/givens.cpp
+)
+
+target_include_directories(test_gmres_ca_mpi PRIVATE include)
+
+target_link_libraries(test_gmres_ca_mpi
+    PRIVATE
+    MPI::MPI_CXX
+    stdc++exp
+)

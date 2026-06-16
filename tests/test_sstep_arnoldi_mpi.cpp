@@ -1,0 +1,153 @@
+#include "communication_avoiding/sstep_arnoldi_mpi.hpp"
+
+#include "common/types.hpp"
+#include "parallel/distributed_sparse_matrix.hpp"
+#include "parallel/distributed_vector.hpp"
+#include "parallel/distributed_vector_ops.hpp"
+
+#include <cassert>
+#include <cmath>
+#include <mpi.h>
+#include <print>
+#include <vector>
+
+namespace {
+
+gmres::Index local_size_for_rank(gmres::Index global_size, int rank, int size)
+{
+    const gmres::Index base = global_size / static_cast<gmres::Index>(size);
+    const gmres::Index remainder = global_size % static_cast<gmres::Index>(size);
+
+    if (static_cast<gmres::Index>(rank) < remainder) {
+        return base + 1;
+    }
+
+    return base;
+}
+
+gmres::Index local_start_for_rank(gmres::Index global_size, int rank, int size)
+{
+    gmres::Index start = 0;
+
+    for (int r = 0; r < rank; ++r) {
+        start += local_size_for_rank(global_size, r, size);
+    }
+
+    return start;
+}
+
+bool nearly_equal(gmres::Scalar a, gmres::Scalar b, gmres::Scalar tolerance)
+{
+    return std::abs(a - b) < tolerance;
+}
+
+}
+
+int main(int argc, char** argv)
+{
+    MPI_Init(&argc, &argv);
+
+    int rank = 0;
+    int size = 1;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    using namespace gmres;
+
+    const Index global_size = 4;
+    const Index local_rows = local_size_for_rank(global_size, rank, size);
+    const Index local_start = local_start_for_rank(global_size, rank, size);
+
+    /*
+        Use diagonal matrix:
+
+        A = diag(1, 2, 3, 4)
+
+        This is simple and gives predictable distributed SpMV.
+    */
+    Vector values;
+    std::vector<Index> col_indices;
+    std::vector<Index> row_ptr;
+
+    row_ptr.push_back(0);
+
+    for (Index local_row = 0; local_row < local_rows; ++local_row) {
+        const Index global_row = local_start + local_row;
+
+        values.push_back(static_cast<Scalar>(global_row + 1));
+        col_indices.push_back(global_row);
+        row_ptr.push_back(values.size());
+    }
+
+    DistributedSparseMatrixCSR A(
+        global_size,
+        global_size,
+        local_start,
+        local_rows,
+        values,
+        col_indices,
+        row_ptr,
+        MPI_COMM_WORLD
+    );
+
+    /*
+        Starting vector q = [1, 1, 1, 1] / 2
+        so ||q|| = 1.
+    */
+    Vector local_q_values(local_rows, 0.5);
+
+    DistributedVector q(
+        global_size,
+        local_start,
+        local_q_values,
+        MPI_COMM_WORLD
+    );
+
+    DistributedVectorList old_basis;
+    old_basis.push_back(q);
+
+    const Index s = 2;
+
+    SStepArnoldiMPIResult result =
+        sstep_arnoldi_block_mpi(A,
+                                old_basis,
+                                s,
+                                PolynomialBasisType::Monomial);
+
+    assert(result.accepted_columns > 0);
+    assert(result.Q_block.size() == result.accepted_columns);
+
+    /*
+        Check each returned vector has global norm 1.
+    */
+    for (const DistributedVector& v : result.Q_block) {
+        assert(nearly_equal(norm2_mpi(v), 1.0, 1e-10));
+    }
+
+    /*
+        Check returned vectors are orthogonal to old q.
+    */
+    for (const DistributedVector& v : result.Q_block) {
+        assert(nearly_equal(dot_mpi(q, v), 0.0, 1e-10));
+    }
+
+    /*
+        Check returned vectors are mutually orthogonal.
+    */
+    for (Index i = 0; i < result.Q_block.size(); ++i) {
+        for (Index j = i + 1; j < result.Q_block.size(); ++j) {
+            assert(nearly_equal(dot_mpi(result.Q_block[i], result.Q_block[j]), 0.0, 1e-10));
+        }
+    }
+
+    if (rank == 0) {
+        std::println("test_sstep_arnoldi_mpi passed.");
+        std::println("accepted_columns = {}", result.accepted_columns);
+        std::println("truncated = {}", result.truncated);
+    }
+
+    MPI_Finalize();
+
+    return 0;
+}

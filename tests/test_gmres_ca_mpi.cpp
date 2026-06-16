@@ -6,87 +6,88 @@
 #include "parallel/distributed_vector.hpp"
 #include "parallel/distributed_vector_ops.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <mpi.h>
 #include <print>
 #include <vector>
 
-namespace {
-
-gmres::Index local_size_for_rank(gmres::Index global_size, int rank, int size)
+namespace
 {
-    const gmres::Index base = global_size / static_cast<gmres::Index>(size);
-    const gmres::Index remainder = global_size % static_cast<gmres::Index>(size);
+    gmres::Index local_size_for_rank(gmres::Index global_size,
+                                     int rank,
+                                     int comm_size)
+    {
+        gmres::Index base = global_size / static_cast<gmres::Index>(comm_size);
+        gmres::Index remainder = global_size % static_cast<gmres::Index>(comm_size);
 
-    if (static_cast<gmres::Index>(rank) < remainder) {
-        return base + 1;
+        return base + (static_cast<gmres::Index>(rank) < remainder ? 1 : 0);
     }
 
-    return base;
-}
+    gmres::Index local_start_for_rank(gmres::Index global_size,
+                                      int rank,
+                                      int comm_size)
+    {
+        gmres::Index base = global_size / static_cast<gmres::Index>(comm_size);
+        gmres::Index remainder = global_size % static_cast<gmres::Index>(comm_size);
+        gmres::Index rank_index = static_cast<gmres::Index>(rank);
 
-gmres::Index local_start_for_rank(gmres::Index global_size, int rank, int size)
-{
-    gmres::Index start = 0;
-
-    for (int r = 0; r < rank; ++r) {
-        start += local_size_for_rank(global_size, r, size);
+        return rank_index * base + std::min(rank_index, remainder);
     }
-
-    return start;
-}
-
-bool nearly_equal(gmres::Scalar a, gmres::Scalar b, gmres::Scalar tolerance)
-{
-    return std::abs(a - b) < tolerance;
-}
-
 }
 
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
 
+    MPI_Comm comm = MPI_COMM_WORLD;
+
     int rank = 0;
-    int size = 1;
+    int comm_size = 0;
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &comm_size);
 
-    using namespace gmres;
+    const gmres::Index global_size = 2;
 
-    /*
-        Solve:
+    gmres::Index local_start =
+        local_start_for_rank(global_size, rank, comm_size);
 
-        [4 1] [x0] = [6]
-        [1 3] [x1]   [7]
+    gmres::Index local_rows =
+        local_size_for_rank(global_size, rank, comm_size);
 
-        Exact solution:
-        x = [1, 2]
-    */
+    // Global matrix:
+    //
+    // A = [ 4  1
+    //       1  3 ]
+    //
+    // Exact solution:
+    //
+    // x = [1, 2]
+    //
+    // b = A*x = [6, 7]
 
-    const Index global_size = 2;
-    const Index local_rows = local_size_for_rank(global_size, rank, size);
-    const Index local_start = local_start_for_rank(global_size, rank, size);
-
-    Vector values;
-    std::vector<Index> col_indices;
-    std::vector<Index> row_ptr;
+    gmres::Vector values;
+    std::vector<gmres::Index> col_indices;
+    std::vector<gmres::Index> row_ptr;
 
     row_ptr.push_back(0);
 
-    for (Index local_row = 0; local_row < local_rows; ++local_row) {
-        const Index global_row = local_start + local_row;
+    for (gmres::Index local_row = 0; local_row < local_rows; ++local_row)
+    {
+        gmres::Index global_row = local_start + local_row;
 
-        if (global_row == 0) {
+        if (global_row == 0)
+        {
             values.push_back(4.0);
             col_indices.push_back(0);
 
             values.push_back(1.0);
             col_indices.push_back(1);
         }
-        else if (global_row == 1) {
+        else if (global_row == 1)
+        {
             values.push_back(1.0);
             col_indices.push_back(0);
 
@@ -97,79 +98,80 @@ int main(int argc, char** argv)
         row_ptr.push_back(values.size());
     }
 
-    DistributedSparseMatrixCSR A(
-        global_size,
-        global_size,
-        local_start,
-        local_rows,
-        values,
-        col_indices,
-        row_ptr,
-        MPI_COMM_WORLD
-    );
+    gmres::DistributedSparseMatrixCSR A(global_size,
+                                        global_size,
+                                        local_start,
+                                        local_rows,
+                                        values,
+                                        col_indices,
+                                        row_ptr,
+                                        comm);
 
-    Vector local_b_values(local_rows, 0.0);
-    Vector local_x0_values(local_rows, 0.0);
+    gmres::Vector b_local(local_rows, 0.0);
+    gmres::Vector x0_local(local_rows, 0.0);
 
-    for (Index local_row = 0; local_row < local_rows; ++local_row) {
-        const Index global_row = local_start + local_row;
+    for (gmres::Index i = 0; i < local_rows; ++i)
+    {
+        gmres::Index global_index = local_start + i;
 
-        if (global_row == 0) {
-            local_b_values[local_row] = 6.0;
+        if (global_index == 0)
+        {
+            b_local[i] = 6.0;
         }
-        else if (global_row == 1) {
-            local_b_values[local_row] = 7.0;
+        else if (global_index == 1)
+        {
+            b_local[i] = 7.0;
         }
     }
 
-    DistributedVector b(
-        global_size,
-        local_start,
-        local_b_values,
-        MPI_COMM_WORLD
-    );
+    gmres::DistributedVector b(global_size,
+                               local_start,
+                               b_local,
+                               comm);
 
-    DistributedVector x0(
-        global_size,
-        local_start,
-        local_x0_values,
-        MPI_COMM_WORLD
-    );
+    gmres::DistributedVector x0(global_size,
+                                local_start,
+                                x0_local,
+                                comm);
 
-    GMRESConfig config;
+    gmres::GMRESConfig config;
     config.restart_blocks = 2;
     config.s_step = 1;
     config.max_iterations = 10;
     config.tolerance = 1e-10;
-    config.verbose = rank == 0;
+    config.verbose = false;
 
-    CAGMRESMPIResult result = gmres_ca_mpi(A, b, x0, config);
+    gmres::CAGMRESMPIResult result = gmres::gmres_ca_mpi(A, b, x0, config);
 
     assert(result.converged);
+    assert(result.iterations <= config.max_iterations);
 
-    const Vector& local_x = result.x.local_values();
+    const gmres::Vector& x_local = result.x.local_values();
 
-    for (Index local_row = 0; local_row < local_rows; ++local_row) {
-        const Index global_row = local_start + local_row;
+    for (gmres::Index i = 0; i < result.x.local_size(); ++i)
+    {
+        gmres::Index global_index = result.x.local_start() + i;
 
-        if (global_row == 0) {
-            assert(nearly_equal(local_x[local_row], 1.0, 1e-8));
+        if (global_index == 0)
+        {
+            assert(std::abs(x_local[i] - 1.0) < 1e-8);
         }
-        else if (global_row == 1) {
-            assert(nearly_equal(local_x[local_row], 2.0, 1e-8));
+        else if (global_index == 1)
+        {
+            assert(std::abs(x_local[i] - 2.0) < 1e-8);
         }
     }
 
-    DistributedVector Ax = A.multiply(result.x);
-    DistributedVector residual = b;
-    axpy_local(-1.0, Ax, residual);
+    gmres::DistributedVector Ax = A.multiply(result.x);
+    gmres::DistributedVector residual = b;
 
-    assert(norm2_mpi(residual) < 1e-8);
+    gmres::axpy_local(-1.0, Ax, residual);
 
-    if (rank == 0) {
-        std::println("test_gmres_ca_mpi passed.");
-        std::println("iterations = {}", result.iterations);
-        std::println("blocks completed = {}", result.blocks_completed);
+    assert(gmres::norm2_mpi(residual) < config.tolerance);
+
+    if (rank == 0)
+    {
+        std::println("MPI CA-GMRES test passed.");
     }
 
     MPI_Finalize();

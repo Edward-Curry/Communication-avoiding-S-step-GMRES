@@ -1,0 +1,85 @@
+\documentclass[nochapter]{tcd-msc-hpc}
+\thesis{MSc in High-performance Computing}
+\school{School of Mathematics}
+
+%Fill in this information with details about yourself and your project
+\title{Communication Avoiding S-step GMRES}
+\shorttitle{Abbreviated title of your project}
+\author{Edward Curry}
+\studentID{20335396}
+\firstsupervisor{Prof.  Kirk Soodhalter}
+\secondsupervisor{}
+\submissiondate{Date your submitted your thesis}
+\signaturefile{figures/sig.png}%file containing your signature for plagiarism pledge
+\signaturewidth{0.2}%as a percentage between 0 and 1 to adjust signature size
+\codelink{https://github.com/Edward-Curry/Communication-avoiding-S-step-GMRES.git}
+
+\begin{document}
+\maketitle
+
+\newpage
+
+\makeplagiarismpage
+
+\newpage
+
+\section*{Acknowledgements}
+Write acknowledgements to your supervisor, classmates, friends, family, partner\ldots anyone who supported you during the MSc.
+
+\lipsum[2-4]
+
+\newpage
+\begin{abstract}
+\section*{Abstract}
+Write a summary of your project.
+
+\lipsum[2-4]
+\\
+\newline
+\textbf{Keywords:} keyword1, keyword2, keyword3,\ldots
+\end{abstract}
+\vspace{8pt}
+\tableofcontents
+\newpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}\label{sec:intro}
+\input{chapters/introduction}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Background}\label{sec:background}
+\input{chapters/background}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Implementation}\label{sec:implementation}
+\input{chapters/implementation}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Results}\label{sec:results}
+\input{chapters/results}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Conclusion}\label{sec:conclusion}
+\input{chapters/conclusion}
+
+
+\newpage
+\addcontentsline{toc}{section}{Lists}
+%\listofalgorithms
+%\listoflistings
+%\listoffigures
+%\listoftables
+
+\newpage
+\addcontentsline{toc}{section}{References}
+\bibliographystyle{plainurl}
+\bibliography{Bibliography.bib}
+
+\end{document}

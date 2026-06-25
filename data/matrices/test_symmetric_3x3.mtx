@@ -1,0 +1,7 @@
+%%MatrixMarket matrix coordinate real symmetric
+% Symmetric matrix stored using one triangle
+3 3 4
+1 1 2.0
+2 1 4.0
+2 2 3.0
+3 3 6.0

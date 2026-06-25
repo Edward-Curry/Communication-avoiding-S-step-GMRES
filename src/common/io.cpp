@@ -282,34 +282,37 @@ namespace gmres
             throw std::runtime_error("Could not open Matrix Market file: " + filename);
         }
 
-        std::string line;
+        std::string header;
 
-        // Read header line
-        if (!std::getline(file, line))
+        if (!std::getline(file, header))
         {
             throw std::runtime_error("Matrix Market file is empty: " + filename);
         }
 
-        if (line.find("%%MatrixMarket") != 0)
+        const std::string normalized_header = lowercase(header);
+
+        if (normalized_header.find("%%matrixmarket") != 0
+            || normalized_header.find("matrix") == std::string::npos
+            || normalized_header.find("coordinate") == std::string::npos)
         {
-            throw std::runtime_error("Invalid Matrix Market header in file: " + filename);
+            throw std::runtime_error(
+                "Only Matrix Market coordinate matrices are supported: "
+                + filename);
         }
 
-        // Skip comments
-        do
-        {
-            if (!std::getline(file, line))
-            {
-                throw std::runtime_error("Missing matrix size line in file: " + filename);
-            }
-        } while (!line.empty() && line[0] == '%');
+        const bool symmetric =
+            normalized_header.find("symmetric") != std::string::npos;
+        const bool pattern =
+            normalized_header.find("pattern") != std::string::npos;
+        const std::string size_text =
+            read_matrix_market_data_line(file, filename);
 
         Index rows = 0;
         Index cols = 0;
         Index nonzeros = 0;
 
         {
-            std::stringstream size_line(line);
+            std::stringstream size_line(size_text);
             size_line >> rows >> cols >> nonzeros;
 
             if (!size_line)
@@ -319,24 +322,47 @@ namespace gmres
         }
 
         std::vector<std::tuple<Index, Index, Scalar>> entries;
-        entries.reserve(nonzeros);
+        entries.reserve(symmetric ? 2 * nonzeros : nonzeros);
 
         for (Index k = 0; k < nonzeros; ++k)
         {
             Index row = 0;
             Index col = 0;
-            Scalar value = 0.0;
+            Scalar value = 1.0;
 
-            file >> row >> col >> value;
+            file >> row >> col;
+
+            if (!pattern)
+            {
+                file >> value;
+            }
 
             if (!file)
             {
                 throw std::runtime_error("Invalid matrix entry in file: " + filename);
             }
 
-            // Matrix Market uses 1-based indexing.
-            // C++ uses 0-based indexing.
-            entries.emplace_back(row - 1, col - 1, value);
+            if (row == 0 || col == 0 || row > rows || col > cols)
+            {
+                throw std::runtime_error(
+                    "Matrix Market matrix index out of range: " + filename);
+            }
+
+            const Index zero_based_row = row - 1;
+            const Index zero_based_col = col - 1;
+
+            entries.emplace_back(
+                zero_based_row,
+                zero_based_col,
+                value);
+
+            if (symmetric && zero_based_row != zero_based_col)
+            {
+                entries.emplace_back(
+                    zero_based_col,
+                    zero_based_row,
+                    value);
+            }
         }
 
         std::sort(entries.begin(), entries.end(),
@@ -354,8 +380,8 @@ namespace gmres
         std::vector<Index> col_indices;
         std::vector<Index> row_ptr(rows + 1, 0);
 
-        values.reserve(nonzeros);
-        col_indices.reserve(nonzeros);
+        values.reserve(entries.size());
+        col_indices.reserve(entries.size());
 
         for (const auto& entry : entries)
         {

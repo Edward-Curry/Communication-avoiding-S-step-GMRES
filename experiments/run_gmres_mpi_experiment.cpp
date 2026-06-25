@@ -60,7 +60,7 @@ int main(int argc, char** argv)
         gmres::GMRESConfig config;
         config.restart =
             std::min<gmres::Index>(30, A.global_rows());
-        config.max_iterations = 200;
+        config.max_iterations = 10000;
         config.tolerance = 1e-10;
         config.verbose = false;
 

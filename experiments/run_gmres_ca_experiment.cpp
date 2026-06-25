@@ -93,7 +93,7 @@ int main(int argc, char** argv)
         gmres::GMRESConfig config;
         config.restart_blocks = 6;
         config.s_step = std::min<gmres::Index>(5, A.rows());
-        config.max_iterations = 200;
+        config.max_iterations = 10000;
         config.tolerance = 1e-10;
         config.verbose = false;
 

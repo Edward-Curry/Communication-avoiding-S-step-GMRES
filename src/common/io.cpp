@@ -612,33 +612,58 @@ namespace gmres
                 "Experiment output prefix must not be empty.");
         }
 
-        std::filesystem::create_directories(output_directory);
+        if (experiment.process_count == 0)
+        {
+            throw std::invalid_argument(
+                "Experiment process count must be greater than zero.");
+        }
 
         const std::string matrix_name = make_filename_component(
             std::filesystem::path(experiment.matrix_path).stem().string());
         const std::string output_prefix = make_filename_component(
             experiment.output_prefix);
         const std::string filename_prefix =
-            matrix_name + "_" + output_prefix;
+            matrix_name
+            + "_"
+            + output_prefix
+            + "_p"
+            + std::to_string(experiment.process_count);
+
+        const std::filesystem::path config_directory =
+            output_directory / "config";
+        const std::filesystem::path convergence_directory =
+            output_directory / "convergence";
+        const std::filesystem::path performance_directory =
+            output_directory / "performance";
+        const std::filesystem::path accuracy_directory =
+            output_directory / "accuracy";
+        const std::filesystem::path solution_directory =
+            output_directory / "solution";
+
+        std::filesystem::create_directories(config_directory);
+        std::filesystem::create_directories(convergence_directory);
+        std::filesystem::create_directories(performance_directory);
+        std::filesystem::create_directories(accuracy_directory);
+        std::filesystem::create_directories(solution_directory);
 
         write_experiment_config(
-            output_directory
+            config_directory
                 / (filename_prefix + "_config.csv"),
             experiment);
         write_experiment_convergence(
-            output_directory
+            convergence_directory
                 / (filename_prefix + "_convergence.csv"),
             experiment);
         write_experiment_performance(
-            output_directory
+            performance_directory
                 / (filename_prefix + "_performance.csv"),
             experiment);
         write_experiment_accuracy(
-            output_directory
+            accuracy_directory
                 / (filename_prefix + "_accuracy.csv"),
             experiment);
         write_experiment_solution(
-            output_directory
+            solution_directory
                 / (filename_prefix + "_solution.csv"),
             experiment);
     }

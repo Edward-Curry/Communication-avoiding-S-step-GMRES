@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J gmres_scaling
-#SBATCH -o gmres_scaling_%j.out
-#SBATCH -e gmres_scaling_%j.err
+#SBATCH -o gmres_scaling.out
+#SBATCH -e gmres_scaling.err
 #SBATCH --no-requeue
 #SBATCH --export=NONE
 #SBATCH --get-user-env

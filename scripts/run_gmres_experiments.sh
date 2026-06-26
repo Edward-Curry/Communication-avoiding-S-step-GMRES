@@ -8,7 +8,7 @@
 #SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=16
-#SBATCH --time=02:00:00
+#SBATCH --time=10:00:00
 
 set -e
 

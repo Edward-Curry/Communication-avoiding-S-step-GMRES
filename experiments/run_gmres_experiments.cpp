@@ -4,7 +4,6 @@
 #include "common/utils.hpp"
 #include "sequential/gmres_seq.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <exception>
@@ -35,10 +34,6 @@ int main(int argc, char** argv)
         const gmres::Vector x0(A.cols(), 0.0);
 
         gmres::GMRESConfig config;
-        config.restart = std::min<gmres::Index>(30, A.rows());
-        config.max_iterations = 10000;
-        config.tolerance = 1e-10;
-        config.verbose = false;
 
         const gmres::Scalar initial_residual =
             gmres::residual_norm(A, b, x0);

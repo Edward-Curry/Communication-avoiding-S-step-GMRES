@@ -6,7 +6,6 @@
 #include "parallel/distributed_vector.hpp"
 #include "parallel/gmres_mpi.hpp"
 
-#include <algorithm>
 #include <cstdio>
 #include <exception>
 #include <filesystem>
@@ -58,11 +57,6 @@ int main(int argc, char** argv)
         const gmres::DistributedVector b = A.multiply(x_true);
 
         gmres::GMRESConfig config;
-        config.restart =
-            std::min<gmres::Index>(30, A.global_rows());
-        config.max_iterations = 10000;
-        config.tolerance = 1e-10;
-        config.verbose = false;
 
         const gmres::Scalar initial_residual =
             gmres::residual_norm_mpi(A, b, x0);

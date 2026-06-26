@@ -91,11 +91,6 @@ int main(int argc, char** argv)
         const gmres::Vector x0(A.cols(), 0.0);
 
         gmres::GMRESConfig config;
-        config.restart_blocks = 6;
-        config.s_step = std::min<gmres::Index>(5, A.rows());
-        config.max_iterations = 10000;
-        config.tolerance = 1e-10;
-        config.verbose = false;
 
         const gmres::Scalar initial_residual =
             gmres::residual_norm(A, b, x0);

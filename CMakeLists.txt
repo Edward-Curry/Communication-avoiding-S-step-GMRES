@@ -5,6 +5,21 @@ project(CommunicationAvoidingSstepGMRES LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(BLAS REQUIRED)
+
+find_path(GMRES_CBLAS_INCLUDE_DIR
+    NAMES cblas.h
+    PATH_SUFFIXES openblas
+)
+
+if(NOT GMRES_CBLAS_INCLUDE_DIR)
+    message(FATAL_ERROR "BLAS was found, but cblas.h was not found.")
+endif()
+
+add_library(gmres_blas INTERFACE)
+target_include_directories(gmres_blas INTERFACE ${GMRES_CBLAS_INCLUDE_DIR})
+target_link_libraries(gmres_blas INTERFACE ${BLAS_LIBRARIES})
+
 add_executable(run_seq
     app/run_seq.cpp
 )
@@ -236,3 +251,22 @@ target_link_libraries(run_gmres_ca_mpi_experiment
     MPI::MPI_CXX
     stdc++exp
 )
+
+set(GMRES_BLAS_TARGETS
+    test_vector_ops
+    test_orthogonalization
+    test_arnoldi_seq
+    test_gmres_seq
+    test_gmres_mpi
+    test_gmres_ca
+    test_sstep_arnoldi_mpi
+    test_gmres_ca_mpi
+    run_gmres_experiments
+    run_gmres_ca_experiment
+    run_gmres_mpi_experiment
+    run_gmres_ca_mpi_experiment
+)
+
+foreach(target IN LISTS GMRES_BLAS_TARGETS)
+    target_link_libraries(${target} PRIVATE gmres_blas)
+endforeach()

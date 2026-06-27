@@ -1,11 +1,27 @@
 #include "parallel/distributed_vector_ops.hpp"
 
+#include <cblas.h>
+
 #include <cmath>
+#include <limits>
 #include <mpi.h>
 #include <stdexcept>
 
 namespace gmres
 {
+    namespace
+    {
+        int blas_size(Index size)
+        {
+            if (size > static_cast<Index>(std::numeric_limits<int>::max()))
+            {
+                throw std::length_error("Local vector is too large for the configured BLAS integer type.");
+            }
+
+            return static_cast<int>(size);
+        }
+    }
+
     void check_compatible(const DistributedVector& x,
                           const DistributedVector& y)
     {
@@ -38,12 +54,13 @@ namespace gmres
         const Vector& x_local = x.local_values();
         const Vector& y_local = y.local_values();
 
-        Scalar local_dot = 0.0;
-
-        for (Index i = 0; i < x_local.size(); ++i)
-        {
-            local_dot += x_local[i] * y_local[i];
-        }
+        const Scalar local_dot = x_local.empty()
+            ? 0.0
+            : cblas_ddot(blas_size(x_local.size()),
+                          x_local.data(),
+                          1,
+                          y_local.data(),
+                          1);
 
         Scalar global_dot = 0.0;
 
@@ -67,10 +84,15 @@ namespace gmres
     {
         Vector& x_local = x.local_values();
 
-        for (Index i = 0; i < x_local.size(); ++i)
+        if (x_local.empty())
         {
-            x_local[i] *= alpha;
+            return;
         }
+
+        cblas_dscal(blas_size(x_local.size()),
+                    alpha,
+                    x_local.data(),
+                    1);
     }
 
     void axpy_local(Scalar alpha,
@@ -82,9 +104,16 @@ namespace gmres
         const Vector& x_local = x.local_values();
         Vector& y_local = y.local_values();
 
-        for (Index i = 0; i < x_local.size(); ++i)
+        if (x_local.empty())
         {
-            y_local[i] += alpha * x_local[i];
+            return;
         }
+
+        cblas_daxpy(blas_size(x_local.size()),
+                    alpha,
+                    x_local.data(),
+                    1,
+                    y_local.data(),
+                    1);
     }
 }

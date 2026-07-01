@@ -1,5 +1,6 @@
 #include "communication_avoiding/sstep_arnoldi.hpp"
 
+#include "communication_avoiding/bcgs2_cholqr.hpp"
 #include "communication_avoiding/krylov_basis.hpp"
 
 #include <stdexcept>
@@ -9,7 +10,8 @@ namespace gmres {
 SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
                                        const VectorList& old_basis,
                                        Index s,
-                                       PolynomialBasisType basis_type)
+                                       PolynomialBasisType basis_type,
+                                       BlockOrthogonalizationMethod method)
 {
     if (old_basis.empty()) {
         throw std::invalid_argument("sstep_arnoldi_block: old_basis is empty.");
@@ -23,8 +25,16 @@ SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
 
     VectorList krylov_block = generate_krylov_block(A, q, s, basis_type);
 
-    BlockOrthogonalizationResult ortho_result =
-        block_modified_gram_schmidt(old_basis, krylov_block);
+    BlockOrthogonalizationResult ortho_result;
+
+    switch (method) {
+    case BlockOrthogonalizationMethod::ModifiedGramSchmidt:
+        ortho_result = block_modified_gram_schmidt(old_basis, krylov_block);
+        break;
+    case BlockOrthogonalizationMethod::BCGS2CholQR:
+        ortho_result = bcgs2_cholqr(old_basis, krylov_block);
+        break;
+    }
 
     SStepArnoldiResult result;
     result.Q_block = ortho_result.Q_block;

@@ -1,6 +1,7 @@
 #ifndef COMMUNICATION_AVOIDING_SSTEP_ARNOLDI_HPP
 #define COMMUNICATION_AVOIDING_SSTEP_ARNOLDI_HPP
 
+#include "common/config.hpp"
 #include "common/sparse_matrix.hpp"
 #include "common/types.hpp"
 #include "communication_avoiding/block_orthogonalization.hpp"
@@ -19,7 +20,9 @@ struct SStepArnoldiResult {
 SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
                                        const VectorList& old_basis,
                                        Index s,
-                                       PolynomialBasisType basis_type);
+                                       PolynomialBasisType basis_type,
+                                       BlockOrthogonalizationMethod method =
+                                           BlockOrthogonalizationMethod::ModifiedGramSchmidt);
 
 }
 

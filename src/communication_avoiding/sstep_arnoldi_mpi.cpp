@@ -1,5 +1,6 @@
 #include "communication_avoiding/sstep_arnoldi_mpi.hpp"
 
+#include "communication_avoiding/bcgs2_cholqr_mpi.hpp"
 #include "communication_avoiding/krylov_basis_mpi.hpp"
 
 #include <stdexcept>
@@ -9,7 +10,8 @@ namespace gmres {
 SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& A,
                                               const DistributedVectorList& old_basis,
                                               Index s,
-                                              PolynomialBasisType basis_type)
+                                              PolynomialBasisType basis_type,
+                                              BlockOrthogonalizationMethod method)
 {
     if (old_basis.empty()) {
         throw std::invalid_argument("sstep_arnoldi_block_mpi: old_basis is empty.");
@@ -24,8 +26,16 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
     DistributedVectorList krylov_block =
         generate_krylov_block_mpi(A, q, s, basis_type);
 
-    BlockOrthogonalizationMPIResult ortho_result =
-        block_modified_gram_schmidt_mpi(old_basis, krylov_block);
+    BlockOrthogonalizationMPIResult ortho_result;
+
+    switch (method) {
+    case BlockOrthogonalizationMethod::ModifiedGramSchmidt:
+        ortho_result = block_modified_gram_schmidt_mpi(old_basis, krylov_block);
+        break;
+    case BlockOrthogonalizationMethod::BCGS2CholQR:
+        ortho_result = bcgs2_cholqr_mpi(old_basis, krylov_block);
+        break;
+    }
 
     SStepArnoldiMPIResult result;
     result.Q_block = ortho_result.Q_block;

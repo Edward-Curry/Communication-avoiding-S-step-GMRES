@@ -1,0 +1,49 @@
+#include "communication_avoiding/bcgs_mpi.hpp"
+
+#include <limits>
+#include <mpi.h>
+#include <stdexcept>
+
+namespace gmres {
+
+namespace {
+
+int mpi_count(Index count)
+{
+    if (count > static_cast<Index>(std::numeric_limits<int>::max())) {
+        throw std::length_error("BCGS coefficient matrix exceeds the MPI count range.");
+    }
+
+    return static_cast<int>(count);
+}
+
+}
+
+BCGSMPIPassResult bcgs_pass_mpi(
+    const DistributedDenseBlock& old_basis,
+    const DistributedDenseBlock& input_block)
+{
+    check_compatible(old_basis, input_block);
+
+    BCGSMPIPassResult result;
+    result.block = input_block;
+    result.coefficients = transpose_multiply(old_basis.local_block(),
+                                             input_block.local_block());
+
+    if (result.coefficients.size() > 0) {
+        MPI_Allreduce(MPI_IN_PLACE,
+                      result.coefficients.data(),
+                      mpi_count(result.coefficients.size()),
+                      MPI_DOUBLE,
+                      MPI_SUM,
+                      input_block.communicator());
+    }
+
+    subtract_product(result.block.local_block(),
+                     old_basis.local_block(),
+                     result.coefficients);
+
+    return result;
+}
+
+}

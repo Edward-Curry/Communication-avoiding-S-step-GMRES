@@ -6,6 +6,10 @@ export MPI_ROOT="/home/support/rl8/spack/1.1.1/opt/spack/linux-x86_64_v3/openmpi
 export PATH="${MPI_ROOT}/bin:${PATH}"
 export LD_LIBRARY_PATH="${MPI_ROOT}/lib:${LD_LIBRARY_PATH:-}"
 
+export OPENBLAS_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
 echo "MPI_ROOT=${MPI_ROOT}"
 echo "mpicxx=$(command -v mpicxx)"
 echo "mpirun=$(command -v mpirun)"

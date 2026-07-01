@@ -142,7 +142,8 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
             sstep_arnoldi_block_mpi(A,
                                     basis,
                                     config.s_step,
-                                    PolynomialBasisType::Monomial);
+                                    PolynomialBasisType::Monomial,
+                                    config.block_orthogonalization);
 
         for (const DistributedVector& q : block_result.Q_block) {
             basis.push_back(q);

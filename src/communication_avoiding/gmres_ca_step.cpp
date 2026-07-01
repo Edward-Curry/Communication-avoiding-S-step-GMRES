@@ -136,7 +136,8 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
             sstep_arnoldi_block(A,
                                 basis,
                                 config.s_step,
-                                PolynomialBasisType::Monomial);
+                                PolynomialBasisType::Monomial,
+                                config.block_orthogonalization);
 
         for (const Vector& q : block_result.Q_block) {
             basis.push_back(q);

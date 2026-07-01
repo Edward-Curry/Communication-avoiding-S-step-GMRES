@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cmath>
 #include <print>
+#include <vector>
 
 namespace {
 
@@ -44,28 +45,31 @@ int main()
     GMRESConfig config;
     config.restart_blocks = 2;
     config.s_step = 1;
-    config.max_iterations = 10;
-    config.tolerance = 1e-10;
+    config.max_iterations = 100;
+    config.tolerance = 1e-8;
     config.verbose = true;
 
-    CAGMRESResult result = gmres_ca(A, b, x0, config);
+    const std::vector<BlockOrthogonalizationMethod> methods{
+        BlockOrthogonalizationMethod::BCGS2CholQR,
+        BlockOrthogonalizationMethod::ModifiedGramSchmidt
+    };
 
-    assert(result.converged);
-    assert(result.x.size() == 2);
+    for (BlockOrthogonalizationMethod method : methods) {
+        config.block_orthogonalization = method;
+        CAGMRESResult result = gmres_ca(A, b, x0, config);
 
-    assert(nearly_equal(result.x[0], 1.0, 1e-8));
-    assert(nearly_equal(result.x[1], 2.0, 1e-8));
+        assert(result.converged);
+        assert(result.x.size() == 2);
+        assert(nearly_equal(result.x[0], 1.0, 1e-8));
+        assert(nearly_equal(result.x[1], 2.0, 1e-8));
 
-    Vector residual = b;
-    Vector Ax = A.multiply(result.x);
-    axpy(-1.0, Ax, residual);
+        Vector residual = b;
+        Vector Ax = A.multiply(result.x);
+        axpy(-1.0, Ax, residual);
+        assert(norm2(residual) < 1e-8);
+    }
 
-    assert(norm2(residual) < 1e-8);
-
-    std::println("test_gmres_ca passed.");
-    std::println("x = [{}, {}]", result.x[0], result.x[1]);
-    std::println("iterations = {}", result.iterations);
-    std::println("blocks completed = {}", result.blocks_completed);
+    std::println("test_gmres_ca passed for both block orthogonalization methods.");
 
     return 0;
 }

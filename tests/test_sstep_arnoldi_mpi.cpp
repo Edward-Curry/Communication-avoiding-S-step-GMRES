@@ -109,42 +109,36 @@ int main(int argc, char** argv)
 
     const Index s = 2;
 
-    SStepArnoldiMPIResult result =
-        sstep_arnoldi_block_mpi(A,
-                                old_basis,
-                                s,
-                                PolynomialBasisType::Monomial);
+    const std::vector<BlockOrthogonalizationMethod> methods{
+        BlockOrthogonalizationMethod::ModifiedGramSchmidt,
+        BlockOrthogonalizationMethod::BCGS2CholQR
+    };
 
-    assert(result.accepted_columns > 0);
-    assert(result.Q_block.size() == result.accepted_columns);
+    for (BlockOrthogonalizationMethod method : methods) {
+        SStepArnoldiMPIResult result =
+            sstep_arnoldi_block_mpi(A,
+                                    old_basis,
+                                    s,
+                                    PolynomialBasisType::Monomial,
+                                    method);
 
-    /*
-        Check each returned vector has global norm 1.
-    */
-    for (const DistributedVector& v : result.Q_block) {
-        assert(nearly_equal(norm2_mpi(v), 1.0, 1e-10));
-    }
+        assert(result.accepted_columns > 0);
+        assert(result.Q_block.size() == result.accepted_columns);
 
-    /*
-        Check returned vectors are orthogonal to old q.
-    */
-    for (const DistributedVector& v : result.Q_block) {
-        assert(nearly_equal(dot_mpi(q, v), 0.0, 1e-10));
-    }
+        for (const DistributedVector& v : result.Q_block) {
+            assert(nearly_equal(norm2_mpi(v), 1.0, 1e-10));
+            assert(nearly_equal(dot_mpi(q, v), 0.0, 1e-10));
+        }
 
-    /*
-        Check returned vectors are mutually orthogonal.
-    */
-    for (Index i = 0; i < result.Q_block.size(); ++i) {
-        for (Index j = i + 1; j < result.Q_block.size(); ++j) {
-            assert(nearly_equal(dot_mpi(result.Q_block[i], result.Q_block[j]), 0.0, 1e-10));
+        for (Index i = 0; i < result.Q_block.size(); ++i) {
+            for (Index j = i + 1; j < result.Q_block.size(); ++j) {
+                assert(nearly_equal(dot_mpi(result.Q_block[i], result.Q_block[j]), 0.0, 1e-10));
+            }
         }
     }
 
     if (rank == 0) {
-        std::println("test_sstep_arnoldi_mpi passed.");
-        std::println("accepted_columns = {}", result.accepted_columns);
-        std::println("truncated = {}", result.truncated);
+        std::println("test_sstep_arnoldi_mpi passed for both block orthogonalization methods.");
     }
 
     MPI_Finalize();

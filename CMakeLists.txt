@@ -20,6 +20,26 @@ add_library(gmres_blas INTERFACE)
 target_include_directories(gmres_blas INTERFACE ${GMRES_CBLAS_INCLUDE_DIR})
 target_link_libraries(gmres_blas INTERFACE ${BLAS_LIBRARIES})
 
+set(GMRES_BCGS2_SHARED_SOURCES
+    src/common/dense_block.cpp
+    src/communication_avoiding/partial_cholesky.cpp
+)
+
+set(GMRES_BCGS2_SEQUENTIAL_SOURCES
+    ${GMRES_BCGS2_SHARED_SOURCES}
+    src/communication_avoiding/bcgs.cpp
+    src/communication_avoiding/cholqr.cpp
+    src/communication_avoiding/bcgs2_cholqr.cpp
+)
+
+set(GMRES_BCGS2_MPI_SOURCES
+    ${GMRES_BCGS2_SHARED_SOURCES}
+    src/parallel/distributed_dense_block.cpp
+    src/communication_avoiding/bcgs_mpi.cpp
+    src/communication_avoiding/cholqr_mpi.cpp
+    src/communication_avoiding/bcgs2_cholqr_mpi.cpp
+)
+
 add_executable(run_seq
     app/run_seq.cpp
 )
@@ -119,6 +139,7 @@ add_executable(test_gmres_ca
     src/communication_avoiding/gmres_ca_step.cpp
     src/communication_avoiding/sstep_arnoldi.cpp
     src/communication_avoiding/block_orthogonalization.cpp
+    ${GMRES_BCGS2_SEQUENTIAL_SOURCES}
     src/communication_avoiding/krylov_basis.cpp
     src/communication_avoiding/polynomial_basis.cpp
     src/common/givens.cpp
@@ -129,11 +150,21 @@ add_executable(test_gmres_ca
 target_include_directories(test_gmres_ca PRIVATE include)
 target_link_libraries(test_gmres_ca PRIVATE stdc++exp)
 
+add_executable(test_bcgs2_cholqr
+    tests/test_bcgs2_cholqr.cpp
+    ${GMRES_BCGS2_SEQUENTIAL_SOURCES}
+    src/common/vector_ops.cpp
+)
+
+target_include_directories(test_bcgs2_cholqr PRIVATE include)
+target_link_libraries(test_bcgs2_cholqr PRIVATE stdc++exp)
+
 add_executable(test_sstep_arnoldi_mpi
     tests/test_sstep_arnoldi_mpi.cpp
     src/communication_avoiding/sstep_arnoldi_mpi.cpp
     src/communication_avoiding/krylov_basis_mpi.cpp
     src/communication_avoiding/block_orthogonalization_mpi.cpp
+    ${GMRES_BCGS2_MPI_SOURCES}
     src/communication_avoiding/polynomial_basis.cpp
     src/parallel/distributed_vector.cpp
     src/parallel/distributed_vector_ops.cpp
@@ -155,6 +186,7 @@ add_executable(test_gmres_ca_mpi
     src/communication_avoiding/sstep_arnoldi_mpi.cpp
     src/communication_avoiding/krylov_basis_mpi.cpp
     src/communication_avoiding/block_orthogonalization_mpi.cpp
+    ${GMRES_BCGS2_MPI_SOURCES}
     src/communication_avoiding/polynomial_basis.cpp
     src/parallel/distributed_vector.cpp
     src/parallel/distributed_vector_ops.cpp
@@ -191,6 +223,7 @@ add_executable(run_gmres_ca_experiment
     src/communication_avoiding/gmres_ca_step.cpp
     src/communication_avoiding/sstep_arnoldi.cpp
     src/communication_avoiding/block_orthogonalization.cpp
+    ${GMRES_BCGS2_SEQUENTIAL_SOURCES}
     src/communication_avoiding/krylov_basis.cpp
     src/communication_avoiding/polynomial_basis.cpp
     src/common/givens.cpp
@@ -233,6 +266,7 @@ add_executable(run_gmres_ca_mpi_experiment
     src/communication_avoiding/sstep_arnoldi_mpi.cpp
     src/communication_avoiding/krylov_basis_mpi.cpp
     src/communication_avoiding/block_orthogonalization_mpi.cpp
+    ${GMRES_BCGS2_MPI_SOURCES}
     src/communication_avoiding/polynomial_basis.cpp
     src/parallel/distributed_io.cpp
     src/parallel/distributed_utils.cpp
@@ -259,6 +293,7 @@ set(GMRES_BLAS_TARGETS
     test_gmres_seq
     test_gmres_mpi
     test_gmres_ca
+    test_bcgs2_cholqr
     test_sstep_arnoldi_mpi
     test_gmres_ca_mpi
     run_gmres_experiments

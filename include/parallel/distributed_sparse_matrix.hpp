@@ -37,8 +37,6 @@ namespace gmres
         DistributedVector multiply(const DistributedVector& x) const;
 
     private:
-        void initialize_halo_plan(const DistributedVector& x) const;
-
         Index global_rows_ = 0;
         Index global_cols_ = 0;
 
@@ -50,22 +48,6 @@ namespace gmres
         std::vector<Index> row_ptr_;
 
         MPI_Comm comm_ = MPI_COMM_WORLD;
-
-        mutable bool halo_plan_initialized_ = false;
-        mutable Index halo_local_start_ = 0;
-        mutable Index halo_local_size_ = 0;
-
-        mutable std::vector<int> halo_receive_counts_;
-        mutable std::vector<int> halo_receive_displacements_;
-        mutable std::vector<int> halo_send_counts_;
-        mutable std::vector<int> halo_send_displacements_;
-        mutable std::vector<Index> halo_send_local_indices_;
-        mutable Vector halo_receive_values_;
-        mutable Vector halo_send_values_;
-        mutable std::vector<MPI_Request> halo_requests_;
-
-        mutable std::vector<Index> column_value_indices_;
-        mutable std::vector<unsigned char> column_uses_local_value_;
     };
 }
 

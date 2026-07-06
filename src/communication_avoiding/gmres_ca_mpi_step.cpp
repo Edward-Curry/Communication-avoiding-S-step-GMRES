@@ -1,6 +1,7 @@
 #include "communication_avoiding/gmres_ca_mpi_step.hpp"
 
 #include "common/givens.hpp"
+#include "communication_avoiding/hessenberg_assembly.hpp"
 #include "communication_avoiding/polynomial_basis.hpp"
 #include "communication_avoiding/sstep_arnoldi_mpi.hpp"
 #include "parallel/distributed_vector_ops.hpp"
@@ -64,29 +65,6 @@ void apply_givens_to_least_squares(DenseMatrix& H, Vector& g, Index cols)
     }
 }
 
-DenseMatrix build_projected_hessenberg_mpi(const DistributedSparseMatrixCSR& A,
-                                           const DistributedVectorList& basis)
-{
-    if (basis.size() < 2) {
-        throw std::invalid_argument("build_projected_hessenberg_mpi requires at least two basis vectors.");
-    }
-
-    const Index cols = basis.size() - 1;
-    const Index rows = basis.size();
-
-    DenseMatrix H(rows, Vector(cols, 0.0));
-
-    for (Index j = 0; j < cols; ++j) {
-        DistributedVector Av = A.multiply(basis[j]);
-
-        for (Index i = 0; i < rows; ++i) {
-            H[i][j] = dot_mpi(basis[i], Av);
-        }
-    }
-
-    return H;
-}
-
 } // namespace
 
 CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
@@ -137,6 +115,8 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
     scal_local(1.0 / beta, q0);
     basis.push_back(q0);
 
+    DenseMatrix H(1);
+
     for (Index block = 0; block < config.restart_blocks; ++block) {
         SStepArnoldiMPIResult block_result =
             sstep_arnoldi_block_mpi(A,
@@ -144,6 +124,12 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                     config.s_step,
                                     PolynomialBasisType::Monomial,
                                     config.block_orthogonalization);
+
+        if (block_result.accepted_columns > 0) {
+            append_monomial_hessenberg_block(H,
+                                              block_result.R_old,
+                                              block_result.R_block);
+        }
 
         for (const DistributedVector& q : block_result.Q_block) {
             basis.push_back(q);
@@ -163,8 +149,6 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         result.converged = false;
         return result;
     }
-
-    DenseMatrix H = build_projected_hessenberg_mpi(A, basis);
 
     Vector g(inner_iterations + 1, 0.0);
     g[0] = beta;

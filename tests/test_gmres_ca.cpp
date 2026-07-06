@@ -4,6 +4,8 @@
 #include "common/sparse_matrix.hpp"
 #include "common/types.hpp"
 #include "common/vector_ops.hpp"
+#include "communication_avoiding/hessenberg_assembly.hpp"
+#include "communication_avoiding/sstep_arnoldi.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -15,6 +17,69 @@ namespace {
 bool nearly_equal(gmres::Scalar a, gmres::Scalar b, gmres::Scalar tolerance)
 {
     return std::abs(a - b) < tolerance;
+}
+
+void test_hessenberg_assembly(
+    gmres::BlockOrthogonalizationMethod method)
+{
+    using namespace gmres;
+
+    const SparseMatrixCSR A(
+        5,
+        5,
+        Vector{
+            2.0, 1.0,
+            1.0, 3.0, 1.0,
+            1.0, 4.0, 1.0,
+            1.0, 5.0, 1.0,
+            1.0, 6.0
+        },
+        std::vector<Index>{
+            0, 1,
+            0, 1, 2,
+            1, 2, 3,
+            2, 3, 4,
+            3, 4
+        },
+        std::vector<Index>{0, 2, 5, 8, 11, 13}
+    );
+
+    VectorList basis{Vector{1.0, 0.0, 0.0, 0.0, 0.0}};
+    DenseMatrix hessenberg(1);
+
+    for (Index block = 0; block < 2; ++block) {
+        const SStepArnoldiResult result =
+            sstep_arnoldi_block(A,
+                                basis,
+                                2,
+                                PolynomialBasisType::Monomial,
+                                method);
+
+        assert(!result.truncated);
+        assert(result.accepted_columns == 2);
+
+        append_monomial_hessenberg_block(hessenberg,
+                                          result.R_old,
+                                          result.R_block);
+
+        for (const Vector& q : result.Q_block) {
+            basis.push_back(q);
+        }
+    }
+
+    assert(hessenberg.size() == 5);
+    assert(hessenberg.front().size() == 4);
+
+    for (Index col = 0; col < 4; ++col) {
+        const Vector Aq = A.multiply(basis[col]);
+
+        for (Index row = 0; row < 5; ++row) {
+            const Scalar explicit_entry = dot(basis[row], Aq);
+            assert(nearly_equal(hessenberg[row][col],
+                                explicit_entry,
+                                1e-9));
+        }
+    }
 }
 
 }
@@ -55,6 +120,8 @@ int main()
     };
 
     for (BlockOrthogonalizationMethod method : methods) {
+        test_hessenberg_assembly(method);
+
         config.block_orthogonalization = method;
         CAGMRESResult result = gmres_ca(A, b, x0, config);
 

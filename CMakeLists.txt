@@ -40,6 +40,10 @@ set(GMRES_BCGS2_MPI_SOURCES
     src/communication_avoiding/bcgs2_cholqr_mpi.cpp
 )
 
+set(GMRES_CA_SHARED_SOURCES
+    src/communication_avoiding/hessenberg_assembly.cpp
+)
+
 add_executable(run_seq
     app/run_seq.cpp
 )
@@ -139,6 +143,7 @@ add_executable(test_gmres_ca
     src/communication_avoiding/gmres_ca_step.cpp
     src/communication_avoiding/sstep_arnoldi.cpp
     src/communication_avoiding/block_orthogonalization.cpp
+    ${GMRES_CA_SHARED_SOURCES}
     ${GMRES_BCGS2_SEQUENTIAL_SOURCES}
     src/communication_avoiding/krylov_basis.cpp
     src/communication_avoiding/polynomial_basis.cpp
@@ -186,6 +191,7 @@ add_executable(test_gmres_ca_mpi
     src/communication_avoiding/sstep_arnoldi_mpi.cpp
     src/communication_avoiding/krylov_basis_mpi.cpp
     src/communication_avoiding/block_orthogonalization_mpi.cpp
+    ${GMRES_CA_SHARED_SOURCES}
     ${GMRES_BCGS2_MPI_SOURCES}
     src/communication_avoiding/polynomial_basis.cpp
     src/parallel/distributed_vector.cpp
@@ -223,6 +229,7 @@ add_executable(run_gmres_ca_experiment
     src/communication_avoiding/gmres_ca_step.cpp
     src/communication_avoiding/sstep_arnoldi.cpp
     src/communication_avoiding/block_orthogonalization.cpp
+    ${GMRES_CA_SHARED_SOURCES}
     ${GMRES_BCGS2_SEQUENTIAL_SOURCES}
     src/communication_avoiding/krylov_basis.cpp
     src/communication_avoiding/polynomial_basis.cpp
@@ -266,6 +273,7 @@ add_executable(run_gmres_ca_mpi_experiment
     src/communication_avoiding/sstep_arnoldi_mpi.cpp
     src/communication_avoiding/krylov_basis_mpi.cpp
     src/communication_avoiding/block_orthogonalization_mpi.cpp
+    ${GMRES_CA_SHARED_SOURCES}
     ${GMRES_BCGS2_MPI_SOURCES}
     src/communication_avoiding/polynomial_basis.cpp
     src/parallel/distributed_io.cpp

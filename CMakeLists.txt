@@ -118,6 +118,15 @@ target_link_libraries(test_gmres_seq PRIVATE stdc++exp)
 
 find_package(MPI REQUIRED)
 
+add_executable(test_distributed_sparse_matrix
+    tests/test_distributed_sparse_matrix.cpp
+    src/parallel/distributed_sparse_matrix.cpp
+    src/parallel/distributed_vector.cpp
+)
+
+target_include_directories(test_distributed_sparse_matrix PRIVATE include)
+target_link_libraries(test_distributed_sparse_matrix PRIVATE MPI::MPI_CXX stdc++exp)
+
 add_executable(test_gmres_mpi
     tests/test_gmres_mpi.cpp
     src/parallel/gmres_mpi.cpp

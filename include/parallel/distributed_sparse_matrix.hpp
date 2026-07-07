@@ -37,6 +37,30 @@ namespace gmres
         DistributedVector multiply(const DistributedVector& x) const;
 
     private:
+        struct HaloExchangePlan
+        {
+            bool initialized = false;
+            Index vector_local_start = 0;
+            Index vector_local_size = 0;
+
+            std::vector<int> recv_ranks;
+            std::vector<int> recv_counts;
+            std::vector<int> recv_displacements;
+            std::vector<int> send_ranks;
+            std::vector<int> send_counts;
+            std::vector<int> send_displacements;
+
+            std::vector<Index> send_local_indices;
+            std::vector<Index> nonzero_x_indices;
+            Index remote_value_count = 0;
+
+            Vector send_values;
+            Vector remote_values;
+            std::vector<MPI_Request> requests;
+        };
+
+        void initialize_halo_plan(const DistributedVector& x) const;
+
         Index global_rows_ = 0;
         Index global_cols_ = 0;
 
@@ -48,6 +72,7 @@ namespace gmres
         std::vector<Index> row_ptr_;
 
         MPI_Comm comm_ = MPI_COMM_WORLD;
+        mutable HaloExchangePlan halo_plan_;
     };
 }
 

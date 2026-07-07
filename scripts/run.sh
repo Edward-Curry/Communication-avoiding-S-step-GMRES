@@ -26,7 +26,7 @@ nodes="${SLURM_JOB_NUM_NODES:-1}"
 ranks=$((nodes * 16))
 
 matrix_name="$(basename "${matrix%.*}")"
-output_directory="data/outputs/${matrix_name}"
+output_directory="data/outputs/${matrix_name}_halo_s5"
 
 mkdir -p "$output_directory"
 

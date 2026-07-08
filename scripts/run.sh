@@ -14,6 +14,7 @@ set -e
 
 cd "$SLURM_SUBMIT_DIR" || exit 1
 source scripts/setup_seagull_mpi.sh
+export SLURM_EXPORT_ENV=ALL
 
 matrix="${1:-data/matrices/parabolic_fem.mtx}"
 
@@ -23,7 +24,7 @@ if [[ ! -f "$matrix" ]]; then
 fi
 
 nodes="${SLURM_JOB_NUM_NODES:-1}"
-ranks=$((nodes * 16))
+ranks="${SLURM_NTASKS:-16}"
 
 matrix_name="$(basename "${matrix%.*}")"
 output_directory="data/outputs/${matrix_name}_halo_s5"
@@ -34,7 +35,8 @@ echo "--- MPI CA-GMRES BCGS2-CholQR: $nodes nodes, $ranks ranks ---"
 echo "Matrix: $matrix"
 echo "Output directory: $output_directory"
 
-mpirun -np "$ranks" \
+mpirun --prefix "$MPI_ROOT" \
+    -np "$ranks" \
     --map-by ppr:16:node \
     --bind-to core \
     ./build/run_gmres_ca_mpi_experiment \

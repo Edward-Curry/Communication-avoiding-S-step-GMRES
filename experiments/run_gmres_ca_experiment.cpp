@@ -16,53 +16,32 @@
 namespace
 {
     std::vector<gmres::ResidualHistoryEntry> make_ca_residual_history(
-        const gmres::Vector& residuals,
-        gmres::Index iterations,
-        const gmres::GMRESConfig& config)
+        const gmres::CAResidualHistory& samples)
     {
         std::vector<gmres::ResidualHistoryEntry> history;
-        history.reserve(residuals.size());
+        history.reserve(samples.size());
 
-        if (residuals.empty())
+        for (gmres::Index i = 0; i < samples.size(); ++i)
         {
-            return history;
-        }
+            const gmres::CAResidualSample& sample = samples[i];
 
-        gmres::Index history_entry = 0;
-        gmres::Index iteration = 0;
-        const gmres::Index cycle_capacity =
-            config.restart_blocks * config.s_step;
+            std::string kind = "block_estimated";
 
-        history.push_back({
-            history_entry,
-            iteration,
-            "initial",
-            residuals[history_entry]
-        });
-        ++history_entry;
-
-        while (history_entry < residuals.size())
-        {
-            iteration = std::min(iterations, iteration + cycle_capacity);
+            if (i == 0)
+            {
+                kind = "initial";
+            }
+            else if (sample.recomputed)
+            {
+                kind = "restart_recomputed";
+            }
 
             history.push_back({
-                history_entry,
-                iteration,
-                "block_cycle_estimated",
-                residuals[history_entry]
+                i,
+                sample.iteration,
+                kind,
+                sample.residual_norm
             });
-            ++history_entry;
-
-            if (history_entry < residuals.size())
-            {
-                history.push_back({
-                    history_entry,
-                    iteration,
-                    "restart_recomputed",
-                    residuals[history_entry]
-                });
-                ++history_entry;
-            }
         }
 
         return history;
@@ -126,10 +105,7 @@ int main(int argc, char** argv)
         experiment.iterations = result.iterations;
         experiment.blocks_completed = result.blocks_completed;
         experiment.residual_history =
-            make_ca_residual_history(
-                result.residual_history,
-                result.iterations,
-                config);
+            make_ca_residual_history(result.residual_history);
         experiment.solution = result.x;
         experiment.exact_solution = x_true;
         experiment.initial_residual = initial_residual;

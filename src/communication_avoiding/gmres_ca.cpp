@@ -56,7 +56,7 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
     Vector r = compute_residual(A, b, result.x);
     Scalar beta = norm2(r);
 
-    result.residual_history.push_back(beta);
+    result.residual_history.push_back({0, beta, true});
 
     if (beta < config.tolerance) {
         result.converged = true;
@@ -64,6 +64,8 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
     }
 
     while (result.iterations < config.max_iterations) {
+        const Index iterations_before = result.iterations;
+
         CAGMRESCycleResult cycle =
             gmres_ca_cycle(A, b, result.x, r, beta, config);
 
@@ -71,8 +73,9 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
         result.blocks_completed += cycle.blocks_completed;
         result.iterations += cycle.iterations;
 
-        for (Scalar residual : cycle.residual_history) {
-            result.residual_history.push_back(residual);
+        for (CAResidualSample sample : cycle.residual_history) {
+            sample.iteration += iterations_before;
+            result.residual_history.push_back(sample);
         }
 
         if (cycle.converged) {
@@ -83,7 +86,7 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
         r = compute_residual(A, b, result.x);
         beta = norm2(r);
 
-        result.residual_history.push_back(beta);
+        result.residual_history.push_back({result.iterations, beta, true});
 
         if (beta < config.tolerance) {
             result.converged = true;

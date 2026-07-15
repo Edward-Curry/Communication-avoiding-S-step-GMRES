@@ -44,13 +44,17 @@ void test_hessenberg_assembly(
         std::vector<Index>{0, 2, 5, 8, 11, 13}
     );
 
-    VectorList basis{Vector{1.0, 0.0, 0.0, 0.0, 0.0}};
+    DenseBlock basis(5, 5);
+    basis.set_column(0, Vector{1.0, 0.0, 0.0, 0.0, 0.0});
+    Index basis_cols = 1;
+
     DenseMatrix hessenberg(1);
 
     for (Index block = 0; block < 2; ++block) {
         const SStepArnoldiResult result =
             sstep_arnoldi_block(A,
                                 basis,
+                                basis_cols,
                                 2,
                                 PolynomialBasisType::Monomial,
                                 method);
@@ -62,19 +66,22 @@ void test_hessenberg_assembly(
                                           result.R_old,
                                           result.R_block);
 
-        for (const Vector& q : result.Q_block) {
-            basis.push_back(q);
+        for (Index col = 0; col < result.accepted_columns; ++col) {
+            basis.set_column(basis_cols + col, result.Q_block.get_column(col));
         }
+
+        basis_cols += result.accepted_columns;
     }
 
+    assert(basis_cols == 5);
     assert(hessenberg.size() == 5);
     assert(hessenberg.front().size() == 4);
 
     for (Index col = 0; col < 4; ++col) {
-        const Vector Aq = A.multiply(basis[col]);
+        const Vector Aq = A.multiply(basis.get_column(col));
 
         for (Index row = 0; row < 5; ++row) {
-            const Scalar explicit_entry = dot(basis[row], Aq);
+            const Scalar explicit_entry = dot(basis.get_column(row), Aq);
             assert(nearly_equal(hessenberg[row][col],
                                 explicit_entry,
                                 1e-9));

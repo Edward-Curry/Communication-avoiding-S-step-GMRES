@@ -4,42 +4,48 @@
 #include "communication_avoiding/krylov_basis.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace gmres {
 
 SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
-                                       const VectorList& old_basis,
+                                       const DenseBlock& basis,
+                                       Index basis_cols,
                                        Index s,
                                        PolynomialBasisType basis_type,
                                        BlockOrthogonalizationMethod method)
 {
-    if (old_basis.empty()) {
+    if (basis_cols == 0) {
         throw std::invalid_argument("sstep_arnoldi_block: old_basis is empty.");
+    }
+
+    if (basis_cols > basis.cols()) {
+        throw std::invalid_argument("sstep_arnoldi_block: basis_cols exceeds the basis width.");
     }
 
     if (s == 0) {
         throw std::invalid_argument("sstep_arnoldi_block: s must be positive.");
     }
 
-    const Vector& q = old_basis.back();
+    const Vector q = basis.get_column(basis_cols - 1);
 
-    VectorList krylov_block = generate_krylov_block(A, q, s, basis_type);
+    DenseBlock krylov_block = generate_krylov_block(A, q, s, basis_type);
 
     BlockOrthogonalizationResult ortho_result;
 
     switch (method) {
     case BlockOrthogonalizationMethod::ModifiedGramSchmidt:
-        ortho_result = block_modified_gram_schmidt(old_basis, krylov_block);
+        ortho_result = block_modified_gram_schmidt(basis, basis_cols, krylov_block);
         break;
     case BlockOrthogonalizationMethod::BCGS2CholQR:
-        ortho_result = bcgs2_cholqr(old_basis, krylov_block);
+        ortho_result = bcgs2_cholqr(basis, basis_cols, krylov_block);
         break;
     }
 
     SStepArnoldiResult result;
-    result.Q_block = ortho_result.Q_block;
-    result.R_old = ortho_result.R_old;
-    result.R_block = ortho_result.R_block;
+    result.Q_block = std::move(ortho_result.Q_block);
+    result.R_old = std::move(ortho_result.R_old);
+    result.R_block = std::move(ortho_result.R_block);
     result.accepted_columns = ortho_result.accepted_columns;
     result.truncated = ortho_result.truncated;
 

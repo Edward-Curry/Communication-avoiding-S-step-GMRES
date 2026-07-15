@@ -1,13 +1,17 @@
 #include "communication_avoiding/gmres_ca_mpi_step.hpp"
 
+#include "common/dense_block.hpp"
 #include "common/givens.hpp"
 #include "communication_avoiding/hessenberg_assembly.hpp"
 #include "communication_avoiding/polynomial_basis.hpp"
 #include "communication_avoiding/sstep_arnoldi_mpi.hpp"
+#include "parallel/distributed_dense_block.hpp"
 #include "parallel/distributed_vector_ops.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace gmres {
 
@@ -34,35 +38,6 @@ Vector solve_upper_triangular(const DenseMatrix& R, const Vector& g, Index n)
     }
 
     return y;
-}
-
-void update_solution_mpi(DistributedVector& x,
-                         const DistributedVectorList& basis,
-                         const Vector& y)
-{
-    if (basis.size() < y.size()) {
-        throw std::invalid_argument("update_solution_mpi: not enough basis vectors.");
-    }
-
-    for (Index j = 0; j < y.size(); ++j) {
-        axpy_local(y[j], basis[j], x);
-    }
-}
-
-void apply_givens_to_least_squares(DenseMatrix& H, Vector& g, Index cols)
-{
-    for (Index j = 0; j < cols; ++j) {
-        Scalar c = 0.0;
-        Scalar s = 0.0;
-
-        generate_givens(H[j][j], H[j + 1][j], c, s);
-
-        for (Index col = j; col < cols; ++col) {
-            apply_givens(c, s, H[j][col], H[j + 1][col]);
-        }
-
-        apply_givens(c, s, g[j], g[j + 1]);
-    }
 }
 
 } // namespace
@@ -109,18 +84,42 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         return result;
     }
 
-    DistributedVectorList basis;
+    const Index local_rows = r_start.local_size();
+    const Index capacity = config.restart_blocks * config.s_step;
 
-    DistributedVector q0 = r_start;
-    scal_local(1.0 / beta, q0);
-    basis.push_back(q0);
+    DenseBlock local_basis(local_rows, capacity + 1);
+
+    Vector q0 = r_start.local_values();
+    for (Scalar& value : q0) {
+        value /= beta;
+    }
+    local_basis.set_column(0, q0);
+
+    DistributedDenseBlock basis(r_start.global_size(),
+                                r_start.local_start(),
+                                std::move(local_basis),
+                                r_start.communicator());
+    Index basis_cols = 1;
 
     DenseMatrix H(1);
+
+    // Incrementally rotated copy of the Hessenberg for the least-squares
+    // problem. H itself must stay untransformed because later Hessenberg
+    // assembly steps read its raw columns. H, R and g are replicated on
+    // every rank, so this involves no communication.
+    DenseMatrix R(capacity + 1, Vector(capacity, 0.0));
+    Vector g(capacity + 1, 0.0);
+    g[0] = beta;
+
+    Vector cosines(capacity, 0.0);
+    Vector sines(capacity, 0.0);
+    Index columns_rotated = 0;
 
     for (Index block = 0; block < config.restart_blocks; ++block) {
         SStepArnoldiMPIResult block_result =
             sstep_arnoldi_block_mpi(A,
                                     basis,
+                                    basis_cols,
                                     config.s_step,
                                     PolynomialBasisType::Monomial,
                                     config.block_orthogonalization);
@@ -129,40 +128,68 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
             append_monomial_hessenberg_block(H,
                                               block_result.R_old,
                                               block_result.R_block);
-        }
 
-        for (const DistributedVector& q : block_result.Q_block) {
-            basis.push_back(q);
+            for (Index col = 0; col < block_result.accepted_columns; ++col) {
+                std::copy(block_result.Q_block.column(col),
+                          block_result.Q_block.column(col) + local_rows,
+                          basis.local_block().column(basis_cols + col));
+            }
+
+            basis_cols += block_result.accepted_columns;
         }
 
         result.blocks_completed += 1;
         result.iterations += block_result.accepted_columns;
+
+        // Fold the new Hessenberg columns into the rotated copy so the
+        // least-squares residual estimate is available after every block.
+        const Index total_columns = basis_cols - 1;
+
+        for (Index j = columns_rotated; j < total_columns; ++j) {
+            for (Index row = 0; row <= j + 1; ++row) {
+                R[row][j] = H[row][j];
+            }
+
+            for (Index i = 0; i < j; ++i) {
+                apply_givens(cosines[i], sines[i], R[i][j], R[i + 1][j]);
+            }
+
+            generate_givens(R[j][j], R[j + 1][j], cosines[j], sines[j]);
+            apply_givens(cosines[j], sines[j], R[j][j], R[j + 1][j]);
+            apply_givens(cosines[j], sines[j], g[j], g[j + 1]);
+        }
+
+        columns_rotated = total_columns;
+
+        if (block_result.accepted_columns > 0) {
+            const Scalar residual_estimate = std::abs(g[columns_rotated]);
+            result.residual_history.push_back(
+                {result.iterations, residual_estimate, false});
+
+            if (residual_estimate < config.tolerance) {
+                result.converged = true;
+                break;
+            }
+        }
 
         if (block_result.truncated) {
             break;
         }
     }
 
-    const Index inner_iterations = basis.size() - 1;
+    const Index inner_iterations = columns_rotated;
 
     if (inner_iterations == 0) {
         result.converged = false;
         return result;
     }
 
-    Vector g(inner_iterations + 1, 0.0);
-    g[0] = beta;
+    Vector y = solve_upper_triangular(R, g, inner_iterations);
 
-    apply_givens_to_least_squares(H, g, inner_iterations);
-
-    const Scalar residual_estimate = std::abs(g[inner_iterations]);
-    result.residual_history.push_back(residual_estimate);
-
-    Vector y = solve_upper_triangular(H, g, inner_iterations);
-
-    update_solution_mpi(result.x, basis, y);
-
-    result.converged = residual_estimate < config.tolerance;
+    multiply_add_columns(basis.local_block(),
+                         inner_iterations,
+                         y,
+                         result.x.local_values());
 
     return result;
 }

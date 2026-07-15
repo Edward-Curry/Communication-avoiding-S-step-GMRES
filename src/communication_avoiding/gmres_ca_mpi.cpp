@@ -60,7 +60,7 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
     DistributedVector r = compute_residual_mpi(A, b, result.x);
     Scalar beta = norm2_mpi(r);
 
-    result.residual_history.push_back(beta);
+    result.residual_history.push_back({0, beta, true});
 
     if (beta < config.tolerance) {
         result.converged = true;
@@ -68,6 +68,8 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
     }
 
     while (result.iterations < config.max_iterations) {
+        const Index iterations_before = result.iterations;
+
         CAGMRESMPICycleResult cycle =
             gmres_ca_mpi_cycle(A, b, result.x, r, beta, config);
 
@@ -75,8 +77,9 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
         result.blocks_completed += cycle.blocks_completed;
         result.iterations += cycle.iterations;
 
-        for (Scalar residual : cycle.residual_history) {
-            result.residual_history.push_back(residual);
+        for (CAResidualSample sample : cycle.residual_history) {
+            sample.iteration += iterations_before;
+            result.residual_history.push_back(sample);
         }
 
         if (cycle.converged) {
@@ -87,7 +90,7 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
         r = compute_residual_mpi(A, b, result.x);
         beta = norm2_mpi(r);
 
-        result.residual_history.push_back(beta);
+        result.residual_history.push_back({result.iterations, beta, true});
 
         if (beta < config.tolerance) {
             result.converged = true;

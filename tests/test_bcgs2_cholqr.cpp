@@ -22,43 +22,47 @@ int main()
 {
     using namespace gmres;
 
-    VectorList old_basis{Vector{1.0, 0.0, 0.0, 0.0}};
-    VectorList input_block{
+    const DenseBlock old_basis = pack_columns(
+        VectorList{Vector{1.0, 0.0, 0.0, 0.0}});
+    const DenseBlock input_block = pack_columns(VectorList{
         Vector{1.0, 1.0, 0.0, 0.0},
         Vector{2.0, 1.0, 1.0, 0.0}
-    };
+    });
 
     BlockOrthogonalizationResult result =
-        bcgs2_cholqr(old_basis, input_block);
+        bcgs2_cholqr(old_basis, old_basis.cols(), input_block);
 
     assert(!result.truncated);
-    assert(result.accepted_columns == input_block.size());
-    assert(result.Q_block.size() == input_block.size());
+    assert(result.accepted_columns == input_block.cols());
+    assert(result.Q_block.cols() == input_block.cols());
 
-    for (const Vector& column : result.Q_block) {
+    for (Index col = 0; col < result.Q_block.cols(); ++col) {
+        const Vector column = result.Q_block.get_column(col);
         assert(nearly_equal(norm2(column), 1.0));
-        assert(nearly_equal(dot(old_basis.front(), column), 0.0));
+        assert(nearly_equal(dot(old_basis.get_column(0), column), 0.0));
     }
 
-    assert(nearly_equal(dot(result.Q_block[0], result.Q_block[1]), 0.0));
+    assert(nearly_equal(dot(result.Q_block.get_column(0),
+                            result.Q_block.get_column(1)),
+                        0.0));
 
-    for (Index col = 0; col < input_block.size(); ++col) {
-        Vector reconstructed(input_block[col].size(), 0.0);
+    for (Index col = 0; col < input_block.cols(); ++col) {
+        Vector reconstructed(input_block.rows(), 0.0);
 
-        for (Index old_col = 0; old_col < old_basis.size(); ++old_col) {
+        for (Index old_col = 0; old_col < old_basis.cols(); ++old_col) {
             axpy(result.R_old[old_col][col],
-                 old_basis[old_col],
+                 old_basis.get_column(old_col),
                  reconstructed);
         }
 
-        for (Index block_col = 0; block_col < result.Q_block.size(); ++block_col) {
+        for (Index block_col = 0; block_col < result.Q_block.cols(); ++block_col) {
             axpy(result.R_block[block_col][col],
-                 result.Q_block[block_col],
+                 result.Q_block.get_column(block_col),
                  reconstructed);
         }
 
         for (Index row = 0; row < reconstructed.size(); ++row) {
-            assert(nearly_equal(reconstructed[row], input_block[col][row]));
+            assert(nearly_equal(reconstructed[row], input_block(row, col)));
         }
     }
 

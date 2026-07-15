@@ -11,8 +11,11 @@ struct BCGSMPIPassResult {
     DenseBlock coefficients;
 };
 
+// Orthogonalises input_block against the leading old_cols columns of
+// old_basis, without copying the old basis. One MPI_Allreduce.
 BCGSMPIPassResult bcgs_pass_mpi(
     const DistributedDenseBlock& old_basis,
+    Index old_cols,
     const DistributedDenseBlock& input_block);
 
 }

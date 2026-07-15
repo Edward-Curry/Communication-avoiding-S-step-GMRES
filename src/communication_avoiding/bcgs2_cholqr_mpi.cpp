@@ -3,29 +3,28 @@
 #include "common/dense_block.hpp"
 #include "communication_avoiding/bcgs_mpi.hpp"
 #include "communication_avoiding/cholqr_mpi.hpp"
-#include "parallel/distributed_dense_block.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace gmres {
 
 BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
-    const DistributedVectorList& old_basis,
-    const DistributedVectorList& input_block)
+    const DistributedDenseBlock& old_basis,
+    Index old_cols,
+    const DistributedDenseBlock& input_block)
 {
-    if (old_basis.empty()) {
+    if (old_cols == 0) {
         throw std::invalid_argument("bcgs2_cholqr_mpi: old basis is empty.");
     }
 
-    if (input_block.empty()) {
+    if (input_block.cols() == 0) {
         throw std::invalid_argument("bcgs2_cholqr_mpi: input block is empty.");
     }
 
-    DistributedDenseBlock old_block = pack_distributed_columns(old_basis);
-    DistributedDenseBlock input = pack_distributed_columns(input_block);
-    check_compatible(old_block, input);
+    check_compatible(old_basis, input_block);
 
-    BCGSMPIPassResult first_bcgs = bcgs_pass_mpi(old_block, input);
+    BCGSMPIPassResult first_bcgs = bcgs_pass_mpi(old_basis, old_cols, input_block);
     CholQRMPIResult first_cholqr = cholqr_mpi(first_bcgs.block);
 
     BlockOrthogonalizationMPIResult result;
@@ -36,14 +35,14 @@ BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
     }
 
     BCGSMPIPassResult second_bcgs =
-        bcgs_pass_mpi(old_block, first_cholqr.Q);
+        bcgs_pass_mpi(old_basis, old_cols, first_cholqr.Q);
     CholQRMPIResult second_cholqr = cholqr_mpi(second_bcgs.block);
 
     const Index accepted = second_cholqr.accepted_columns;
     result.accepted_columns = accepted;
     result.truncated = first_cholqr.truncated
         || second_cholqr.truncated
-        || accepted < input.cols();
+        || accepted < input_block.cols();
 
     if (accepted == 0) {
         return result;
@@ -61,7 +60,7 @@ BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
 
     DenseBlock block_factor = multiply(second_cholqr.R, first_factor);
 
-    result.Q_block = unpack_distributed_columns(second_cholqr.Q);
+    result.Q_block = std::move(second_cholqr.Q.local_block());
     result.R_old = to_dense_matrix(first_coefficients);
     result.R_block = to_dense_matrix(block_factor);
     return result;

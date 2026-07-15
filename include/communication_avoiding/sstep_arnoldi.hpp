@@ -2,6 +2,7 @@
 #define COMMUNICATION_AVOIDING_SSTEP_ARNOLDI_HPP
 
 #include "common/config.hpp"
+#include "common/dense_block.hpp"
 #include "common/sparse_matrix.hpp"
 #include "common/types.hpp"
 #include "communication_avoiding/block_orthogonalization.hpp"
@@ -10,15 +11,18 @@
 namespace gmres {
 
 struct SStepArnoldiResult {
-    VectorList Q_block;
+    DenseBlock Q_block;
     DenseMatrix R_old;
     DenseMatrix R_block;
     Index accepted_columns = 0;
     bool truncated = false;
 };
 
+// Generates and orthogonalises one s-step Krylov block, starting from the
+// last of the leading basis_cols columns of basis.
 SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
-                                       const VectorList& old_basis,
+                                       const DenseBlock& basis,
+                                       Index basis_cols,
                                        Index s,
                                        PolynomialBasisType basis_type,
                                        BlockOrthogonalizationMethod method =

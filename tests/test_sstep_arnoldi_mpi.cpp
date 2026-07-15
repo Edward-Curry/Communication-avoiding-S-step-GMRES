@@ -104,8 +104,13 @@ int main(int argc, char** argv)
         MPI_COMM_WORLD
     );
 
-    DistributedVectorList old_basis;
-    old_basis.push_back(q);
+    DenseBlock local_basis(local_rows, 1);
+    local_basis.set_column(0, local_q_values);
+
+    const DistributedDenseBlock old_basis(global_size,
+                                          local_start,
+                                          local_basis,
+                                          MPI_COMM_WORLD);
 
     const Index s = 2;
 
@@ -118,21 +123,30 @@ int main(int argc, char** argv)
         SStepArnoldiMPIResult result =
             sstep_arnoldi_block_mpi(A,
                                     old_basis,
+                                    1,
                                     s,
                                     PolynomialBasisType::Monomial,
                                     method);
 
         assert(result.accepted_columns > 0);
-        assert(result.Q_block.size() == result.accepted_columns);
+        assert(result.Q_block.cols() == result.accepted_columns);
 
-        for (const DistributedVector& v : result.Q_block) {
+        auto column_vector = [&](Index col) {
+            return DistributedVector(global_size,
+                                     local_start,
+                                     result.Q_block.get_column(col),
+                                     MPI_COMM_WORLD);
+        };
+
+        for (Index col = 0; col < result.Q_block.cols(); ++col) {
+            const DistributedVector v = column_vector(col);
             assert(nearly_equal(norm2_mpi(v), 1.0, 1e-10));
             assert(nearly_equal(dot_mpi(q, v), 0.0, 1e-10));
         }
 
-        for (Index i = 0; i < result.Q_block.size(); ++i) {
-            for (Index j = i + 1; j < result.Q_block.size(); ++j) {
-                assert(nearly_equal(dot_mpi(result.Q_block[i], result.Q_block[j]), 0.0, 1e-10));
+        for (Index i = 0; i < result.Q_block.cols(); ++i) {
+            for (Index j = i + 1; j < result.Q_block.cols(); ++j) {
+                assert(nearly_equal(dot_mpi(column_vector(i), column_vector(j)), 0.0, 1e-10));
             }
         }
     }

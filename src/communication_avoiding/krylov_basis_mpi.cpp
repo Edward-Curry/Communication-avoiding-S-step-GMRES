@@ -1,10 +1,11 @@
 #include "communication_avoiding/krylov_basis_mpi.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace gmres {
 
-DistributedVectorList generate_krylov_block_mpi(const DistributedSparseMatrixCSR& A,
+DistributedDenseBlock generate_krylov_block_mpi(const DistributedSparseMatrixCSR& A,
                                                 const DistributedVector& q,
                                                 Index s,
                                                 PolynomialBasisType basis_type)
@@ -29,17 +30,19 @@ DistributedVectorList generate_krylov_block_mpi(const DistributedSparseMatrixCSR
         throw std::invalid_argument("Only Monomial basis is implemented for MPI CA Krylov blocks for now.");
     }
 
-    DistributedVectorList block;
-    block.reserve(s);
+    DenseBlock local_block(q.local_size(), s);
 
     DistributedVector current = q;
 
     for (Index j = 0; j < s; ++j) {
         current = A.multiply(current);
-        block.push_back(current);
+        local_block.set_column(j, current.local_values());
     }
 
-    return block;
+    return DistributedDenseBlock(q.global_size(),
+                                 q.local_start(),
+                                 std::move(local_block),
+                                 q.communicator());
 }
 
 }

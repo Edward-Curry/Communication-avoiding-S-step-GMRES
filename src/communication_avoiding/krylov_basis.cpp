@@ -4,7 +4,7 @@
 
 namespace gmres {
 
-VectorList generate_krylov_block(const SparseMatrixCSR& A,
+DenseBlock generate_krylov_block(const SparseMatrixCSR& A,
                                  const Vector& q,
                                  Index s,
                                  PolynomialBasisType basis_type)
@@ -25,14 +25,13 @@ VectorList generate_krylov_block(const SparseMatrixCSR& A,
         throw std::invalid_argument("Only Monomial basis is implemented for now.");
     }
 
-    VectorList block;
-    block.reserve(s);
+    DenseBlock block(q.size(), s);
 
     Vector current = q;
 
     for (Index j = 0; j < s; ++j) {
         current = A.multiply(current);
-        block.push_back(current);
+        block.set_column(j, current);
     }
 
     return block;

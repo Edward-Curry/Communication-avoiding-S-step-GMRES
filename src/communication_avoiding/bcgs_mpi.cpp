@@ -21,13 +21,19 @@ int mpi_count(Index count)
 
 BCGSMPIPassResult bcgs_pass_mpi(
     const DistributedDenseBlock& old_basis,
+    Index old_cols,
     const DistributedDenseBlock& input_block)
 {
     check_compatible(old_basis, input_block);
 
+    if (old_cols > old_basis.cols()) {
+        throw std::invalid_argument("BCGS old_cols exceeds the basis width.");
+    }
+
     BCGSMPIPassResult result;
     result.block = input_block;
     result.coefficients = transpose_multiply(old_basis.local_block(),
+                                             old_cols,
                                              input_block.local_block());
 
     if (result.coefficients.size() > 0) {
@@ -41,6 +47,7 @@ BCGSMPIPassResult bcgs_pass_mpi(
 
     subtract_product(result.block.local_block(),
                      old_basis.local_block(),
+                     old_cols,
                      result.coefficients);
 
     return result;

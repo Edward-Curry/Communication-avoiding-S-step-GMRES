@@ -2,6 +2,7 @@
 
 #include <cblas.h>
 
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 
@@ -75,6 +76,47 @@ const Scalar& DenseBlock::operator()(Index row, Index col) const
     return values_[col * rows_ + row];
 }
 
+Scalar* DenseBlock::column(Index col)
+{
+    if (col >= cols_) {
+        throw std::out_of_range("DenseBlock column index is out of range.");
+    }
+
+    return values_.data() + col * rows_;
+}
+
+const Scalar* DenseBlock::column(Index col) const
+{
+    if (col >= cols_) {
+        throw std::out_of_range("DenseBlock column index is out of range.");
+    }
+
+    return values_.data() + col * rows_;
+}
+
+void DenseBlock::set_column(Index col, const Vector& values)
+{
+    if (col >= cols_) {
+        throw std::out_of_range("DenseBlock column index is out of range.");
+    }
+
+    if (values.size() != rows_) {
+        throw std::invalid_argument("DenseBlock column assignment has wrong size.");
+    }
+
+    std::copy(values.begin(), values.end(), values_.begin() + col * rows_);
+}
+
+Vector DenseBlock::get_column(Index col) const
+{
+    if (col >= cols_) {
+        throw std::out_of_range("DenseBlock column index is out of range.");
+    }
+
+    return Vector(values_.begin() + col * rows_,
+                  values_.begin() + (col + 1) * rows_);
+}
+
 DenseBlock DenseBlock::leading_columns(Index count) const
 {
     if (count > cols_) {
@@ -124,6 +166,40 @@ DenseBlock transpose_multiply(const DenseBlock& left,
                 CblasTrans,
                 CblasNoTrans,
                 blas_size(left.cols()),
+                blas_size(right.cols()),
+                blas_size(left.rows()),
+                1.0,
+                left.data(),
+                blas_size(left.rows()),
+                right.data(),
+                blas_size(right.rows()),
+                0.0,
+                result.data(),
+                blas_size(result.rows()));
+
+    return result;
+}
+
+DenseBlock transpose_multiply(const DenseBlock& left,
+                              Index left_cols,
+                              const DenseBlock& right)
+{
+    check_same_rows(left, right);
+
+    if (left_cols > left.cols()) {
+        throw std::invalid_argument("transpose_multiply: left_cols exceeds the block width.");
+    }
+
+    DenseBlock result(left_cols, right.cols());
+
+    if (left.rows() == 0 || left_cols == 0 || right.cols() == 0) {
+        return result;
+    }
+
+    cblas_dgemm(CblasColMajor,
+                CblasTrans,
+                CblasNoTrans,
+                blas_size(left_cols),
                 blas_size(right.cols()),
                 blas_size(left.rows()),
                 1.0,
@@ -226,6 +302,76 @@ void subtract_product(DenseBlock& target,
                 1.0,
                 target.data(),
                 blas_size(target.rows()));
+}
+
+void subtract_product(DenseBlock& target,
+                      const DenseBlock& left,
+                      Index left_cols,
+                      const DenseBlock& right)
+{
+    if (left_cols > left.cols()) {
+        throw std::invalid_argument("subtract_product: left_cols exceeds the block width.");
+    }
+
+    if (target.rows() != left.rows()
+        || target.cols() != right.cols()
+        || left_cols != right.rows()) {
+        throw std::invalid_argument("Dense block update dimensions do not match.");
+    }
+
+    if (target.rows() == 0 || target.cols() == 0 || left_cols == 0) {
+        return;
+    }
+
+    cblas_dgemm(CblasColMajor,
+                CblasNoTrans,
+                CblasNoTrans,
+                blas_size(target.rows()),
+                blas_size(target.cols()),
+                blas_size(left_cols),
+                -1.0,
+                left.data(),
+                blas_size(left.rows()),
+                right.data(),
+                blas_size(right.rows()),
+                1.0,
+                target.data(),
+                blas_size(target.rows()));
+}
+
+void multiply_add_columns(const DenseBlock& block,
+                          Index cols,
+                          const Vector& coefficients,
+                          Vector& target)
+{
+    if (cols > block.cols()) {
+        throw std::invalid_argument("multiply_add_columns: cols exceeds the block width.");
+    }
+
+    if (coefficients.size() != cols) {
+        throw std::invalid_argument("multiply_add_columns: coefficient count does not match cols.");
+    }
+
+    if (target.size() != block.rows()) {
+        throw std::invalid_argument("multiply_add_columns: target has wrong size.");
+    }
+
+    if (block.rows() == 0 || cols == 0) {
+        return;
+    }
+
+    cblas_dgemv(CblasColMajor,
+                CblasNoTrans,
+                blas_size(block.rows()),
+                blas_size(cols),
+                1.0,
+                block.data(),
+                blas_size(block.rows()),
+                coefficients.data(),
+                1,
+                1.0,
+                target.data(),
+                1);
 }
 
 void add_in_place(DenseBlock& target,

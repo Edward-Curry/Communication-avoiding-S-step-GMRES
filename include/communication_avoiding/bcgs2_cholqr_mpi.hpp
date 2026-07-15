@@ -2,6 +2,7 @@
 #define COMMUNICATION_AVOIDING_BCGS2_CHOLQR_MPI_HPP
 
 #include "communication_avoiding/block_orthogonalization_mpi.hpp"
+#include "communication_avoiding/partial_cholesky.hpp"
 #include "parallel/distributed_dense_block.hpp"
 
 namespace gmres {
@@ -12,7 +13,9 @@ namespace gmres {
 BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
     const DistributedDenseBlock& old_basis,
     Index old_cols,
-    const DistributedDenseBlock& input_block);
+    const DistributedDenseBlock& input_block,
+    const PartialCholeskyOptions& partial_cholesky_options =
+        PartialCholeskyOptions{});
 
 }
 

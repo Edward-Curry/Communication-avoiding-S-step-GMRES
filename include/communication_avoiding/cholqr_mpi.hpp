@@ -2,6 +2,7 @@
 #define COMMUNICATION_AVOIDING_CHOLQR_MPI_HPP
 
 #include "common/dense_block.hpp"
+#include "communication_avoiding/partial_cholesky.hpp"
 #include "parallel/distributed_dense_block.hpp"
 
 namespace gmres {
@@ -13,7 +14,10 @@ struct CholQRMPIResult {
     bool truncated = false;
 };
 
-CholQRMPIResult cholqr_mpi(const DistributedDenseBlock& input_block);
+CholQRMPIResult cholqr_mpi(
+    const DistributedDenseBlock& input_block,
+    const PartialCholeskyOptions& partial_cholesky_options =
+        PartialCholeskyOptions{});
 
 }
 

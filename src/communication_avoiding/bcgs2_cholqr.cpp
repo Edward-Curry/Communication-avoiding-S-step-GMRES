@@ -11,7 +11,8 @@ namespace gmres {
 BlockOrthogonalizationResult bcgs2_cholqr(
     const DenseBlock& old_basis,
     Index old_cols,
-    const DenseBlock& input_block)
+    const DenseBlock& input_block,
+    const PartialCholeskyOptions& partial_cholesky_options)
 {
     if (old_cols == 0) {
         throw std::invalid_argument("bcgs2_cholqr: old basis is empty.");
@@ -26,7 +27,8 @@ BlockOrthogonalizationResult bcgs2_cholqr(
     }
 
     BCGSPassResult first_bcgs = bcgs_pass(old_basis, old_cols, input_block);
-    CholQRResult first_cholqr = cholqr(first_bcgs.block);
+    CholQRResult first_cholqr =
+        cholqr(first_bcgs.block, partial_cholesky_options);
 
     BlockOrthogonalizationResult result;
 
@@ -36,7 +38,8 @@ BlockOrthogonalizationResult bcgs2_cholqr(
     }
 
     BCGSPassResult second_bcgs = bcgs_pass(old_basis, old_cols, first_cholqr.Q);
-    CholQRResult second_cholqr = cholqr(second_bcgs.block);
+    CholQRResult second_cholqr =
+        cholqr(second_bcgs.block, partial_cholesky_options);
 
     const Index accepted = second_cholqr.accepted_columns;
     result.accepted_columns = accepted;

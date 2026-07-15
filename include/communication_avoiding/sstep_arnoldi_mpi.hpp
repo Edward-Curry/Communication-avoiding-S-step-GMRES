@@ -5,6 +5,7 @@
 #include "common/dense_block.hpp"
 #include "common/types.hpp"
 #include "communication_avoiding/block_orthogonalization_mpi.hpp"
+#include "communication_avoiding/partial_cholesky.hpp"
 #include "communication_avoiding/polynomial_basis.hpp"
 #include "parallel/distributed_dense_block.hpp"
 #include "parallel/distributed_sparse_matrix.hpp"
@@ -29,7 +30,9 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
                                               Index s,
                                               PolynomialBasisType basis_type,
                                               BlockOrthogonalizationMethod method =
-                                                  BlockOrthogonalizationMethod::ModifiedGramSchmidt);
+                                                  BlockOrthogonalizationMethod::ModifiedGramSchmidt,
+                                              const PartialCholeskyOptions& partial_cholesky_options =
+                                                  PartialCholeskyOptions{});
 
 }
 

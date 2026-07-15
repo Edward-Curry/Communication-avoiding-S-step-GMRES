@@ -76,6 +76,25 @@ int main()
     assert(partial.truncated);
     assert(partial.accepted_columns == 1);
 
+    DenseBlock ill_conditioned_gram(2, 2);
+    ill_conditioned_gram(0, 0) = 1.0;
+    ill_conditioned_gram(0, 1) = 0.99;
+    ill_conditioned_gram(1, 0) = 0.99;
+    ill_conditioned_gram(1, 1) = 1.0;
+
+    PartialCholeskyResult pivot_only =
+        partial_cholesky(ill_conditioned_gram,
+                         {PartialCholeskyStoppingRule::PivotOnly, 2.0});
+    assert(!pivot_only.truncated);
+    assert(pivot_only.accepted_columns == 2);
+
+    PartialCholeskyResult condition_limited =
+        partial_cholesky(
+            ill_conditioned_gram,
+            {PartialCholeskyStoppingRule::TriangularConditionEstimate, 2.0});
+    assert(condition_limited.truncated);
+    assert(condition_limited.accepted_columns == 1);
+
     std::println("BCGS2-CholQR test passed.");
     return 0;
 }

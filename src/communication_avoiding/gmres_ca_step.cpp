@@ -102,6 +102,11 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
     Vector sines(capacity, 0.0);
     Index columns_rotated = 0;
 
+    const PartialCholeskyOptions partial_cholesky_options{
+        config.partial_cholesky_stopping_rule,
+        config.partial_cholesky_condition_limit
+    };
+
     for (Index block = 0; block < config.restart_blocks; ++block) {
         SStepArnoldiResult block_result =
             sstep_arnoldi_block(A,
@@ -109,7 +114,8 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
                                 basis_cols,
                                 config.s_step,
                                 PolynomialBasisType::Monomial,
-                                config.block_orthogonalization);
+                                config.block_orthogonalization,
+                                partial_cholesky_options);
 
         if (block_result.accepted_columns > 0) {
             append_monomial_hessenberg_block(H,

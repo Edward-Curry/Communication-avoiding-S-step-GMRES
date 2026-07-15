@@ -6,14 +6,16 @@
 
 namespace gmres {
 
-CholQRResult cholqr(const DenseBlock& input_block)
+CholQRResult cholqr(const DenseBlock& input_block,
+                    const PartialCholeskyOptions& partial_cholesky_options)
 {
     if (input_block.cols() == 0) {
         throw std::invalid_argument("CholQR input block is empty.");
     }
 
     PartialCholeskyResult factor =
-        partial_cholesky(gram_matrix(input_block));
+        partial_cholesky(gram_matrix(input_block),
+                         partial_cholesky_options);
 
     CholQRResult result;
     result.R = factor.R;

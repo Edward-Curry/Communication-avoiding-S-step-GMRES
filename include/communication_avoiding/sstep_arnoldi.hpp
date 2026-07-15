@@ -6,6 +6,7 @@
 #include "common/sparse_matrix.hpp"
 #include "common/types.hpp"
 #include "communication_avoiding/block_orthogonalization.hpp"
+#include "communication_avoiding/partial_cholesky.hpp"
 #include "communication_avoiding/polynomial_basis.hpp"
 
 namespace gmres {
@@ -26,7 +27,9 @@ SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
                                        Index s,
                                        PolynomialBasisType basis_type,
                                        BlockOrthogonalizationMethod method =
-                                           BlockOrthogonalizationMethod::ModifiedGramSchmidt);
+                                           BlockOrthogonalizationMethod::ModifiedGramSchmidt,
+                                       const PartialCholeskyOptions& partial_cholesky_options =
+                                           PartialCholeskyOptions{});
 
 }
 

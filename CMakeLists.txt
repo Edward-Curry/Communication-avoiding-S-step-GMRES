@@ -12,13 +12,27 @@ find_path(GMRES_CBLAS_INCLUDE_DIR
     PATH_SUFFIXES openblas
 )
 
+find_path(GMRES_LAPACKE_INCLUDE_DIR
+    NAMES lapacke.h
+    PATH_SUFFIXES openblas lapacke
+)
+
 if(NOT GMRES_CBLAS_INCLUDE_DIR)
     message(FATAL_ERROR "BLAS was found, but cblas.h was not found.")
 endif()
 
+if(NOT GMRES_LAPACKE_INCLUDE_DIR)
+    message(FATAL_ERROR "BLAS was found, but lapacke.h was not found.")
+endif()
+
 add_library(gmres_blas INTERFACE)
-target_include_directories(gmres_blas INTERFACE ${GMRES_CBLAS_INCLUDE_DIR})
-target_link_libraries(gmres_blas INTERFACE ${BLAS_LIBRARIES})
+target_include_directories(gmres_blas INTERFACE
+    ${GMRES_CBLAS_INCLUDE_DIR}
+    ${GMRES_LAPACKE_INCLUDE_DIR}
+)
+target_link_libraries(gmres_blas INTERFACE
+    ${BLAS_LIBRARIES}
+)
 
 set(GMRES_BCGS2_SHARED_SOURCES
     src/common/dense_block.cpp

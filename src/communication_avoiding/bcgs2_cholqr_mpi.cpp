@@ -12,7 +12,8 @@ namespace gmres {
 BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
     const DistributedDenseBlock& old_basis,
     Index old_cols,
-    const DistributedDenseBlock& input_block)
+    const DistributedDenseBlock& input_block,
+    const PartialCholeskyOptions& partial_cholesky_options)
 {
     if (old_cols == 0) {
         throw std::invalid_argument("bcgs2_cholqr_mpi: old basis is empty.");
@@ -25,7 +26,8 @@ BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
     check_compatible(old_basis, input_block);
 
     BCGSMPIPassResult first_bcgs = bcgs_pass_mpi(old_basis, old_cols, input_block);
-    CholQRMPIResult first_cholqr = cholqr_mpi(first_bcgs.block);
+    CholQRMPIResult first_cholqr =
+        cholqr_mpi(first_bcgs.block, partial_cholesky_options);
 
     BlockOrthogonalizationMPIResult result;
 
@@ -36,7 +38,8 @@ BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
 
     BCGSMPIPassResult second_bcgs =
         bcgs_pass_mpi(old_basis, old_cols, first_cholqr.Q);
-    CholQRMPIResult second_cholqr = cholqr_mpi(second_bcgs.block);
+    CholQRMPIResult second_cholqr =
+        cholqr_mpi(second_bcgs.block, partial_cholesky_options);
 
     const Index accepted = second_cholqr.accepted_columns;
     result.accepted_columns = accepted;

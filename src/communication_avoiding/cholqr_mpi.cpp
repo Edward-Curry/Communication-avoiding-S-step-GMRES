@@ -21,7 +21,9 @@ int mpi_count(Index count)
 
 }
 
-CholQRMPIResult cholqr_mpi(const DistributedDenseBlock& input_block)
+CholQRMPIResult cholqr_mpi(
+    const DistributedDenseBlock& input_block,
+    const PartialCholeskyOptions& partial_cholesky_options)
 {
     if (input_block.cols() == 0) {
         throw std::invalid_argument("MPI CholQR input block is empty.");
@@ -36,7 +38,8 @@ CholQRMPIResult cholqr_mpi(const DistributedDenseBlock& input_block)
                   MPI_SUM,
                   input_block.communicator());
 
-    PartialCholeskyResult factor = partial_cholesky(gram);
+    PartialCholeskyResult factor =
+        partial_cholesky(gram, partial_cholesky_options);
 
     CholQRMPIResult result;
     result.R = factor.R;

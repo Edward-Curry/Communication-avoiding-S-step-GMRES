@@ -13,7 +13,8 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
                                               Index basis_cols,
                                               Index s,
                                               PolynomialBasisType basis_type,
-                                              BlockOrthogonalizationMethod method)
+                                              BlockOrthogonalizationMethod method,
+                                              const PartialCholeskyOptions& partial_cholesky_options)
 {
     if (basis_cols == 0) {
         throw std::invalid_argument("sstep_arnoldi_block_mpi: old_basis is empty.");
@@ -42,7 +43,10 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
         ortho_result = block_modified_gram_schmidt_mpi(basis, basis_cols, krylov_block);
         break;
     case BlockOrthogonalizationMethod::BCGS2CholQR:
-        ortho_result = bcgs2_cholqr_mpi(basis, basis_cols, krylov_block);
+        ortho_result = bcgs2_cholqr_mpi(basis,
+                                        basis_cols,
+                                        krylov_block,
+                                        partial_cholesky_options);
         break;
     }
 

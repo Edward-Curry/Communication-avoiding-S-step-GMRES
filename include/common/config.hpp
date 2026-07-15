@@ -11,6 +11,12 @@ namespace gmres
         BCGS2CholQR
     };
 
+    enum class PartialCholeskyStoppingRule
+    {
+        PivotOnly,
+        TriangularConditionEstimate
+    };
+
     struct GMRESConfig
     {
         Index restart = 30;
@@ -20,6 +26,9 @@ namespace gmres
         Index s_step = 5;
         BlockOrthogonalizationMethod block_orthogonalization =
             BlockOrthogonalizationMethod::BCGS2CholQR;
+        PartialCholeskyStoppingRule partial_cholesky_stopping_rule =
+            PartialCholeskyStoppingRule::TriangularConditionEstimate;
+        Scalar partial_cholesky_condition_limit = 1e7;
         bool verbose = false;
     };
 }

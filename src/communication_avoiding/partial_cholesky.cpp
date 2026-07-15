@@ -2,13 +2,61 @@
 
 #include <algorithm>
 #include <cmath>
+#include <lapacke.h>
 #include <limits>
 #include <stdexcept>
 #include <utility>
 
 namespace gmres {
 
-PartialCholeskyResult partial_cholesky(const DenseBlock& gram)
+namespace {
+
+lapack_int lapack_size(Index size)
+{
+    if (size > static_cast<Index>(std::numeric_limits<lapack_int>::max())) {
+        throw std::length_error("Partial Cholesky block exceeds the LAPACK size range.");
+    }
+
+    return static_cast<lapack_int>(size);
+}
+
+Scalar estimate_upper_triangular_condition(const DenseBlock& upper_triangular)
+{
+    if (upper_triangular.rows() != upper_triangular.cols()) {
+        throw std::invalid_argument("Condition estimate requires a square triangular matrix.");
+    }
+
+    if (upper_triangular.rows() == 0) {
+        return 1.0;
+    }
+
+    double reciprocal_condition = 0.0;
+    const lapack_int size = lapack_size(upper_triangular.rows());
+
+    const lapack_int info = LAPACKE_dtrcon(LAPACK_COL_MAJOR,
+                                           '1',
+                                           'U',
+                                           'N',
+                                           size,
+                                           upper_triangular.data(),
+                                           size,
+                                           &reciprocal_condition);
+
+    if (info != 0) {
+        throw std::runtime_error("LAPACKE_dtrcon failed while estimating Cholesky condition.");
+    }
+
+    if (reciprocal_condition <= 0.0) {
+        return std::numeric_limits<Scalar>::infinity();
+    }
+
+    return 1.0 / reciprocal_condition;
+}
+
+}
+
+PartialCholeskyResult partial_cholesky(const DenseBlock& gram,
+                                       const PartialCholeskyOptions& options)
 {
     if (gram.rows() != gram.cols()) {
         throw std::invalid_argument("Partial Cholesky requires a square Gram matrix.");
@@ -66,6 +114,19 @@ PartialCholeskyResult partial_cholesky(const DenseBlock& gram)
         }
 
         factor(col, col) = std::sqrt(pivot);
+
+        if (options.stopping_rule
+            == PartialCholeskyStoppingRule::TriangularConditionEstimate) {
+            const DenseBlock candidate =
+                factor.leading_principal_block(col + 1);
+            const Scalar condition =
+                estimate_upper_triangular_condition(candidate);
+
+            if (condition > options.condition_limit) {
+                break;
+            }
+        }
+
         accepted = col + 1;
     }
 

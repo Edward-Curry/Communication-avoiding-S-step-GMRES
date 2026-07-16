@@ -40,7 +40,8 @@ namespace
                 i,
                 sample.iteration,
                 kind,
-                sample.residual_norm
+                sample.residual_norm,
+                sample.block_s
             });
         }
 

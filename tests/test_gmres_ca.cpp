@@ -89,6 +89,84 @@ void test_hessenberg_assembly(
     }
 }
 
+// Drives the adaptive s-step path (varying block widths, growth and clamping)
+// on a small symmetric tridiagonal system and checks it still converges to the
+// exact solution.
+void test_adaptive_s(gmres::BlockOrthogonalizationMethod method)
+{
+    using namespace gmres;
+
+    const SparseMatrixCSR A(
+        5,
+        5,
+        Vector{
+            2.0, 1.0,
+            1.0, 3.0, 1.0,
+            1.0, 4.0, 1.0,
+            1.0, 5.0, 1.0,
+            1.0, 6.0
+        },
+        std::vector<Index>{
+            0, 1,
+            0, 1, 2,
+            1, 2, 3,
+            2, 3, 4,
+            3, 4
+        },
+        std::vector<Index>{0, 2, 5, 8, 11, 13}
+    );
+
+    const Vector x_true{1.0, 2.0, 3.0, 4.0, 5.0};
+    const Vector b = A.multiply(x_true);
+    const Vector x0(5, 0.0);
+
+    GMRESConfig config;
+    config.block_orthogonalization = method;
+    config.adaptive_s = true;
+    config.s_step = 2;
+    config.s_min = 1;
+    config.s_max = 4;
+    config.s_grow_after = 1;
+    config.restart_blocks = 5;
+    config.max_iterations = 100;
+    config.tolerance = 1e-12;
+
+    const CAGMRESResult result = gmres_ca(A, b, x0, config);
+
+    assert(result.converged);
+
+    Vector residual = b;
+    Vector Ax = A.multiply(result.x);
+    axpy(-1.0, Ax, residual);
+    assert(norm2(residual) < 1e-8);
+
+    for (Index i = 0; i < 5; ++i) {
+        assert(nearly_equal(result.x[i], x_true[i], 1e-7));
+    }
+
+    // Same solve with the initial-s probe: the first block of the cycle must
+    // request s_max, and the solver must still converge to the same solution.
+    config.s_initial_probe = true;
+
+    const CAGMRESResult probed = gmres_ca(A, b, x0, config);
+
+    assert(probed.converged);
+
+    bool found_block_sample = false;
+    for (const CAResidualSample& sample : probed.residual_history) {
+        if (sample.block_s != 0) {
+            assert(sample.block_s == config.s_max);
+            found_block_sample = true;
+            break;
+        }
+    }
+    assert(found_block_sample);
+
+    for (Index i = 0; i < 5; ++i) {
+        assert(nearly_equal(probed.x[i], x_true[i], 1e-7));
+    }
+}
+
 }
 
 int main()
@@ -141,9 +219,12 @@ int main()
         Vector Ax = A.multiply(result.x);
         axpy(-1.0, Ax, residual);
         assert(norm2(residual) < 1e-8);
+
+        test_adaptive_s(method);
     }
 
-    std::println("test_gmres_ca passed for both block orthogonalization methods.");
+    std::println("test_gmres_ca passed for both block orthogonalization methods "
+                 "(fixed and adaptive s).");
 
     return 0;
 }

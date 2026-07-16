@@ -17,6 +17,9 @@ namespace gmres
         Index iteration = 0;
         std::string kind;
         Scalar residual_norm = 0.0;
+        // s-step block width for this entry (CA solvers only); 0 when not
+        // applicable (initial/restart rows and non-CA solvers).
+        Index block_s = 0;
     };
 
     struct GMRESExperimentData

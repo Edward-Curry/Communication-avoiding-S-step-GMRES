@@ -73,6 +73,18 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         throw std::invalid_argument("gmres_ca_mpi_cycle: s_step must be positive.");
     }
 
+    if (config.adaptive_s) {
+        if (config.s_min == 0) {
+            throw std::invalid_argument("gmres_ca_mpi_cycle: s_min must be positive when adaptive_s is set.");
+        }
+
+        if (config.s_max < config.s_min) {
+            throw std::invalid_argument("gmres_ca_mpi_cycle: s_max must be >= s_min when adaptive_s is set.");
+        }
+    } else if (config.s_initial_probe) {
+        throw std::invalid_argument("gmres_ca_mpi_cycle: s_initial_probe requires adaptive_s.");
+    }
+
     check_compatible(b, r_start);
     check_compatible(b, x_start);
 
@@ -85,7 +97,14 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
     }
 
     const Index local_rows = r_start.local_size();
-    const Index capacity = config.restart_blocks * config.s_step;
+
+    // Worst-case block width per block. Adaptive s can grow up to s_max, so the
+    // basis and least-squares buffers must be sized for that upper bound. Every
+    // rank derives this from the same replicated config, so all ranks agree.
+    const Index s_cap = config.adaptive_s
+        ? std::max(config.s_step, config.s_max)
+        : config.s_step;
+    const Index capacity = config.restart_blocks * s_cap;
 
     DenseBlock local_basis(local_rows, capacity + 1);
 
@@ -120,12 +139,30 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         config.partial_cholesky_condition_limit
     };
 
+    // Adaptive s-step state. When config.adaptive_s is false, s_current stays
+    // fixed at config.s_step and this loop behaves exactly as before. The
+    // policy reads only replicated config and the accepted_columns count (which
+    // comes from an Allreduce), so every rank chooses the same width.
+    auto clamp_s = [&](Index s) {
+        return std::min(config.s_max, std::max(config.s_min, s));
+    };
+    Index s_current = config.adaptive_s ? clamp_s(config.s_step) : config.s_step;
+    if (config.adaptive_s && config.s_initial_probe) {
+        // Probe: the first block requests s_max; the condition-limited CholQR
+        // (replicated result of the Gram Allreduce) picks the stable width, so
+        // every rank derives the same working width.
+        s_current = config.s_max;
+    }
+    Index consecutive_full = 0;
+
     for (Index block = 0; block < config.restart_blocks; ++block) {
+        const Index requested = s_current;
+
         SStepArnoldiMPIResult block_result =
             sstep_arnoldi_block_mpi(A,
                                     basis,
                                     basis_cols,
-                                    config.s_step,
+                                    requested,
                                     PolynomialBasisType::Monomial,
                                     config.block_orthogonalization,
                                     partial_cholesky_options);
@@ -170,7 +207,7 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         if (block_result.accepted_columns > 0) {
             const Scalar residual_estimate = std::abs(g[columns_rotated]);
             result.residual_history.push_back(
-                {result.iterations, residual_estimate, false});
+                {result.iterations, residual_estimate, false, requested});
 
             if (residual_estimate < config.tolerance) {
                 result.converged = true;
@@ -178,7 +215,27 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
             }
         }
 
-        if (block_result.truncated) {
+        // A block that accepted no columns made no progress; the cycle cannot
+        // continue regardless of the s-step policy.
+        if (block_result.accepted_columns == 0) {
+            break;
+        }
+
+        if (config.adaptive_s) {
+            if (block_result.accepted_columns < requested) {
+                // Truncated or condition-limited: shrink toward the accepted
+                // width, then keep going with the remaining block budget.
+                consecutive_full = 0;
+                s_current = clamp_s(block_result.accepted_columns);
+            } else {
+                // Fully accepted: grow after enough consecutive stable blocks.
+                ++consecutive_full;
+                if (consecutive_full >= config.s_grow_after) {
+                    s_current = clamp_s(s_current + 1);
+                    consecutive_full = 0;
+                }
+            }
+        } else if (block_result.truncated) {
             break;
         }
     }

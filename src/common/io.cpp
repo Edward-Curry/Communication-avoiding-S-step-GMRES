@@ -58,6 +58,32 @@ namespace gmres
             return value.substr(first, last - first + 1);
         }
 
+        const char* to_csv(BlockOrthogonalizationMethod method)
+        {
+            switch (method)
+            {
+            case BlockOrthogonalizationMethod::ModifiedGramSchmidt:
+                return "modified_gram_schmidt";
+            case BlockOrthogonalizationMethod::BCGS2CholQR:
+                return "bcgs2_cholqr";
+            }
+
+            return "unknown";
+        }
+
+        const char* to_csv(PartialCholeskyStoppingRule rule)
+        {
+            switch (rule)
+            {
+            case PartialCholeskyStoppingRule::PivotOnly:
+                return "pivot_only";
+            case PartialCholeskyStoppingRule::TriangularConditionEstimate:
+                return "triangular_condition_estimate";
+            }
+
+            return "unknown";
+        }
+
         std::string lowercase(std::string value)
         {
             std::transform(
@@ -124,11 +150,22 @@ namespace gmres
 
             write_common_header(output);
             output
-                << ",verbose,initial_guess,exact_solution,right_hand_side\n";
+                << ",block_orthogonalization,partial_cholesky_stopping_rule,"
+                   "partial_cholesky_condition_limit,adaptive_s,s_min,s_max,"
+                   "s_grow_after,s_initial_probe,verbose,initial_guess,"
+                   "exact_solution,right_hand_side\n";
 
             write_common_values(output, experiment);
             output
                 << ','
+                << to_csv(experiment.config.block_orthogonalization) << ','
+                << to_csv(experiment.config.partial_cholesky_stopping_rule) << ','
+                << experiment.config.partial_cholesky_condition_limit << ','
+                << (experiment.config.adaptive_s ? "true" : "false") << ','
+                << experiment.config.s_min << ','
+                << experiment.config.s_max << ','
+                << experiment.config.s_grow_after << ','
+                << (experiment.config.s_initial_probe ? "true" : "false") << ','
                 << (experiment.config.verbose ? "true" : "false") << ','
                 << std::quoted(experiment.initial_guess_description) << ','
                 << std::quoted(experiment.exact_solution_description) << ','
@@ -144,8 +181,8 @@ namespace gmres
             write_common_header(output);
             output
                 << ",converged,total_iterations,blocks_completed,"
-                   "history_entry,iteration,residual_kind,residual_norm,"
-                   "residual_relative_to_initial\n";
+                   "history_entry,iteration,block_s,residual_kind,"
+                   "residual_norm,residual_relative_to_initial\n";
 
             for (const ResidualHistoryEntry& entry :
                  experiment.residual_history)
@@ -163,6 +200,7 @@ namespace gmres
                     << experiment.blocks_completed << ','
                     << entry.history_entry << ','
                     << entry.iteration << ','
+                    << entry.block_s << ','
                     << entry.kind << ','
                     << entry.residual_norm << ','
                     << relative_residual << '\n';

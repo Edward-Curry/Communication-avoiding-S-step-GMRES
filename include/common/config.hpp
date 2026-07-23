@@ -2,6 +2,7 @@
 #define COMMON_CONFIG_HPP
 
 #include "common/types.hpp"
+#include "communication_avoiding/polynomial_basis.hpp"
 
 namespace gmres
 {
@@ -59,6 +60,25 @@ namespace gmres
         // themselves). Defaults to off until validated.
         bool enable_recycling = false;
         Index recycle_count = 2;
+
+        // Polynomial basis for s-step Krylov block generation. Monomial
+        // (Aq,...,A^s q) is the default; Newton/ScaledNewton use shifted
+        // products (A-theta_j I)q with theta_j real Ritz-value estimates of
+        // A, Leja-ordered for numerical stability, countering the monomial
+        // basis's tendency to collapse toward the dominant eigenvector
+        // direction as s grows (the diagonal Gram scaling in CholQR already
+        // handles the separate column-NORM-imbalance problem, for any basis
+        // type). Shifts are computed ONCE, from the first restart cycle's
+        // Hessenberg matrix (which necessarily still uses Monomial - there is
+        // no spectral information before that), and reused for the rest of
+        // the solve. ScaledNewton additionally rescales each generated column
+        // by its own norm, guarding against overflow across many shifted
+        // products; ordinary Newton does not rescale during generation
+        // (CholQR's own diagonal scaling still applies once orthogonalized).
+        // Only real Ritz values are used as shifts; a matrix with a genuinely
+        // complex spectrum yields fewer usable shifts (falling back toward
+        // Monomial for the columns whose real-shift budget runs out).
+        PolynomialBasisType polynomial_basis = PolynomialBasisType::Monomial;
 
         BlockOrthogonalizationMethod block_orthogonalization =
             BlockOrthogonalizationMethod::BCGS2CholQR;

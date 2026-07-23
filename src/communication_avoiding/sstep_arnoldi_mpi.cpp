@@ -14,7 +14,8 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
                                               Index s,
                                               PolynomialBasisType basis_type,
                                               BlockOrthogonalizationMethod method,
-                                              const PartialCholeskyOptions& partial_cholesky_options)
+                                              const PartialCholeskyOptions& partial_cholesky_options,
+                                              const Vector& shifts)
 {
     if (basis_cols == 0) {
         throw std::invalid_argument("sstep_arnoldi_block_mpi: old_basis is empty.");
@@ -33,19 +34,19 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
                               basis.local_block().get_column(basis_cols - 1),
                               basis.communicator());
 
-    DistributedDenseBlock krylov_block =
-        generate_krylov_block_mpi(A, q, s, basis_type);
+    KrylovBlockMPIResult krylov =
+        generate_krylov_block_mpi(A, q, s, basis_type, shifts);
 
     BlockOrthogonalizationMPIResult ortho_result;
 
     switch (method) {
     case BlockOrthogonalizationMethod::ModifiedGramSchmidt:
-        ortho_result = block_modified_gram_schmidt_mpi(basis, basis_cols, krylov_block);
+        ortho_result = block_modified_gram_schmidt_mpi(basis, basis_cols, krylov.block);
         break;
     case BlockOrthogonalizationMethod::BCGS2CholQR:
         ortho_result = bcgs2_cholqr_mpi(basis,
                                         basis_cols,
-                                        krylov_block,
+                                        krylov.block,
                                         partial_cholesky_options);
         break;
     }
@@ -56,6 +57,19 @@ SStepArnoldiMPIResult sstep_arnoldi_block_mpi(const DistributedSparseMatrixCSR& 
     result.R_block = std::move(ortho_result.R_block);
     result.accepted_columns = ortho_result.accepted_columns;
     result.truncated = ortho_result.truncated;
+
+    if (basis_type != PolynomialBasisType::Monomial) {
+        result.used_shifts.reserve(result.accepted_columns);
+
+        for (Index k = 0; k < result.accepted_columns; ++k) {
+            result.used_shifts.push_back(shifts[k % shifts.size()]);
+        }
+
+        if (basis_type == PolynomialBasisType::ScaledNewton) {
+            result.used_scales.assign(krylov.column_scales.begin(),
+                                      krylov.column_scales.begin() + result.accepted_columns);
+        }
+    }
 
     return result;
 }

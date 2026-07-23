@@ -128,7 +128,8 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                          const DistributedVector& r_start,
                                          Scalar beta,
                                          const GMRESConfig& config,
-                                         const DistributedDenseBlock& recycled_U)
+                                         const DistributedDenseBlock& recycled_U,
+                                         const Vector& shifts)
 {
     if (A.global_rows() != A.global_cols()) {
         throw std::invalid_argument("gmres_ca_mpi_cycle requires a square matrix.");
@@ -345,6 +346,14 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
     // Every rank computes the same list from replicated data.
     std::vector<RecycleCandidate> candidates;
 
+    // Newton/ScaledNewton bootstrap: see gmres_ca_step.cpp for the full
+    // rationale. Every rank derives the same bootstrapping/effective_basis_type
+    // decision from replicated config and the replicated shifts parameter.
+    const bool bootstrapping =
+        config.polynomial_basis != PolynomialBasisType::Monomial && shifts.empty();
+    const PolynomialBasisType effective_basis_type =
+        bootstrapping ? PolynomialBasisType::Monomial : config.polynomial_basis;
+
     for (Index block = 0; block < config.restart_blocks; ++block) {
         const Index requested = s_current;
         const Index block_col_start = basis_cols;
@@ -354,14 +363,23 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                     basis,
                                     basis_cols,
                                     requested,
-                                    PolynomialBasisType::Monomial,
+                                    effective_basis_type,
                                     config.block_orthogonalization,
-                                    partial_cholesky_options);
+                                    partial_cholesky_options,
+                                    shifts);
 
         if (block_result.accepted_columns > 0) {
-            append_monomial_hessenberg_block(H,
-                                              block_result.R_old,
-                                              block_result.R_block);
+            if (effective_basis_type == PolynomialBasisType::Monomial) {
+                append_monomial_hessenberg_block(H,
+                                                  block_result.R_old,
+                                                  block_result.R_block);
+            } else {
+                append_shifted_hessenberg_block(H,
+                                                block_result.R_old,
+                                                block_result.R_block,
+                                                block_result.used_shifts,
+                                                block_result.used_scales);
+            }
 
             for (Index col = 0; col < block_result.accepted_columns; ++col) {
                 std::copy(block_result.Q_block.column(col),
@@ -424,6 +442,10 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         } else if (block_result.truncated) {
             break;
         }
+    }
+
+    if (bootstrapping) {
+        result.bootstrap_shifts = leja_order(compute_ritz_shifts(H));
     }
 
     if (!candidates.empty()) {

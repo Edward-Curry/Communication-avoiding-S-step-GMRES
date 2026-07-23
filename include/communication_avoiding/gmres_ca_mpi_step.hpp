@@ -23,11 +23,21 @@ struct CAGMRESMPICycleResult {
     // progress). Callers adopt this wholesale as the next cycle's recycled
     // subspace.
     DistributedDenseBlock recycle_candidate_block;
+
+    // Real, Leja-ordered Ritz-value shifts extracted from THIS cycle's own
+    // Hessenberg matrix. Only populated when this cycle ran in bootstrap mode
+    // (config.polynomial_basis wants Newton/ScaledNewton but the shifts
+    // passed in were empty); empty otherwise. Replicated (identical on every
+    // rank). Callers adopt this wholesale as the shift list for subsequent
+    // cycles.
+    Vector bootstrap_shifts;
 };
 
 // recycled_U (may have 0 columns) supplies a subspace from a previous cycle
 // to augment the start of this cycle's search space; see GMRESConfig::
-// enable_recycling for the construction and cost.
+// enable_recycling for the construction and cost. shifts (may be empty)
+// supplies the Newton/ScaledNewton shift sequence established by an earlier
+// cycle's bootstrap; empty means this cycle itself runs in bootstrap mode.
 CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                          const DistributedVector& b,
                                          const DistributedVector& x_start,
@@ -35,7 +45,8 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                          Scalar beta,
                                          const GMRESConfig& config,
                                          const DistributedDenseBlock& recycled_U =
-                                             DistributedDenseBlock());
+                                             DistributedDenseBlock(),
+                                         const Vector& shifts = Vector());
 
 }
 

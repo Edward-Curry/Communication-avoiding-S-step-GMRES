@@ -114,7 +114,8 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
                                   const Vector& r_start,
                                   Scalar beta,
                                   const GMRESConfig& config,
-                                  const DenseBlock& recycled_U)
+                                  const DenseBlock& recycled_U,
+                                  const Vector& shifts)
 {
     if (A.rows() != A.cols()) {
         throw std::invalid_argument("gmres_ca_cycle requires a square matrix.");
@@ -306,6 +307,19 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
     // themselves), scored by relative residual drop.
     std::vector<RecycleCandidate> candidates;
 
+    // Newton/ScaledNewton bootstrap: no shifts exist until a cycle has run
+    // once with Monomial and its Hessenberg has been mined for Ritz values.
+    // shifts.empty() here means this IS that cycle - use Monomial regardless
+    // of config.polynomial_basis, and extract bootstrap_shifts once the block
+    // loop below finishes. On cycle 1 specifically (the only cycle where this
+    // can trigger - see bootstrap_shifts below) recycled_U is necessarily
+    // also still empty, so there is no risk of the recycling seed's identity
+    // block contaminating the Ritz-value extraction.
+    const bool bootstrapping =
+        config.polynomial_basis != PolynomialBasisType::Monomial && shifts.empty();
+    const PolynomialBasisType effective_basis_type =
+        bootstrapping ? PolynomialBasisType::Monomial : config.polynomial_basis;
+
     for (Index block = 0; block < config.restart_blocks; ++block) {
         const Index requested = s_current;
         const Index block_col_start = basis_cols;
@@ -315,14 +329,23 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
                                 basis,
                                 basis_cols,
                                 requested,
-                                PolynomialBasisType::Monomial,
+                                effective_basis_type,
                                 config.block_orthogonalization,
-                                partial_cholesky_options);
+                                partial_cholesky_options,
+                                shifts);
 
         if (block_result.accepted_columns > 0) {
-            append_monomial_hessenberg_block(H,
-                                              block_result.R_old,
-                                              block_result.R_block);
+            if (effective_basis_type == PolynomialBasisType::Monomial) {
+                append_monomial_hessenberg_block(H,
+                                                  block_result.R_old,
+                                                  block_result.R_block);
+            } else {
+                append_shifted_hessenberg_block(H,
+                                                block_result.R_old,
+                                                block_result.R_block,
+                                                block_result.used_shifts,
+                                                block_result.used_scales);
+            }
 
             for (Index col = 0; col < block_result.accepted_columns; ++col) {
                 std::copy(block_result.Q_block.column(col),
@@ -385,6 +408,10 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
         } else if (block_result.truncated) {
             break;
         }
+    }
+
+    if (bootstrapping) {
+        result.bootstrap_shifts = leja_order(compute_ritz_shifts(H));
     }
 
     if (!candidates.empty()) {

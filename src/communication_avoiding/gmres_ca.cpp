@@ -70,11 +70,17 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
     // outright). Starts empty, so the first cycle is unaffected.
     DenseBlock recycled_U;
 
+    // Newton/ScaledNewton shifts, computed once (from the first cycle's
+    // Monomial-bootstrap Hessenberg) and reused for the rest of the solve.
+    // Starts empty, so the first cycle always runs in bootstrap mode when
+    // config.polynomial_basis wants Newton/ScaledNewton.
+    Vector shifts;
+
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
 
         CAGMRESCycleResult cycle =
-            gmres_ca_cycle(A, b, result.x, r, beta, config, recycled_U);
+            gmres_ca_cycle(A, b, result.x, r, beta, config, recycled_U, shifts);
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -87,6 +93,10 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
 
         if (config.enable_recycling && cycle.recycle_candidate_block.cols() > 0) {
             recycled_U = std::move(cycle.recycle_candidate_block);
+        }
+
+        if (shifts.empty() && !cycle.bootstrap_shifts.empty()) {
+            shifts = std::move(cycle.bootstrap_shifts);
         }
 
         // Always verify against a freshly recomputed residual rather than

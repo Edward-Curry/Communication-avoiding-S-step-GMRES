@@ -74,11 +74,15 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
     // outright). Starts empty, so the first cycle is unaffected.
     DistributedDenseBlock recycled_U;
 
+    // Newton/ScaledNewton shifts, computed once (from the first cycle's
+    // Monomial-bootstrap Hessenberg) and reused for the rest of the solve.
+    Vector shifts;
+
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
 
         CAGMRESMPICycleResult cycle =
-            gmres_ca_mpi_cycle(A, b, result.x, r, beta, config, recycled_U);
+            gmres_ca_mpi_cycle(A, b, result.x, r, beta, config, recycled_U, shifts);
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -91,6 +95,10 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
 
         if (config.enable_recycling && cycle.recycle_candidate_block.cols() > 0) {
             recycled_U = std::move(cycle.recycle_candidate_block);
+        }
+
+        if (shifts.empty() && !cycle.bootstrap_shifts.empty()) {
+            shifts = std::move(cycle.bootstrap_shifts);
         }
 
         // Always verify against a freshly recomputed residual rather than

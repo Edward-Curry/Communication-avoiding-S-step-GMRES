@@ -17,10 +17,16 @@ struct SStepArnoldiResult {
     DenseMatrix R_block;
     Index accepted_columns = 0;
     bool truncated = false;
+    // Shift/scale values actually used for the accepted columns (empty for
+    // Monomial). Needed by append_shifted_hessenberg_block for Newton/
+    // ScaledNewton; sized to accepted_columns, not the requested width.
+    Vector used_shifts;
+    Vector used_scales;
 };
 
 // Generates and orthogonalises one s-step Krylov block, starting from the
-// last of the leading basis_cols columns of basis.
+// last of the leading basis_cols columns of basis. shifts is ignored for
+// Monomial; required (nonempty) for Newton/ScaledNewton.
 SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
                                        const DenseBlock& basis,
                                        Index basis_cols,
@@ -29,7 +35,8 @@ SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
                                        BlockOrthogonalizationMethod method =
                                            BlockOrthogonalizationMethod::ModifiedGramSchmidt,
                                        const PartialCholeskyOptions& partial_cholesky_options =
-                                           PartialCholeskyOptions{});
+                                           PartialCholeskyOptions{},
+                                       const Vector& shifts = Vector());
 
 }
 

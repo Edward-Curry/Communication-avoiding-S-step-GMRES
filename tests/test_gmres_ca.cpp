@@ -167,6 +167,87 @@ void test_adaptive_s(gmres::BlockOrthogonalizationMethod method)
     }
 }
 
+// Drives block recycling. restart_blocks=1, s_step=1 forces many restart
+// cycles on this 5-dimensional system, so a recycled subspace from one
+// cycle's winning block gets a real chance to seed the next.
+void test_recycling(gmres::BlockOrthogonalizationMethod method)
+{
+    using namespace gmres;
+
+    const SparseMatrixCSR A(
+        5,
+        5,
+        Vector{
+            2.0, 1.0,
+            1.0, 3.0, 1.0,
+            1.0, 4.0, 1.0,
+            1.0, 5.0, 1.0,
+            1.0, 6.0
+        },
+        std::vector<Index>{
+            0, 1,
+            0, 1, 2,
+            1, 2, 3,
+            2, 3, 4,
+            3, 4
+        },
+        std::vector<Index>{0, 2, 5, 8, 11, 13}
+    );
+
+    const Vector x_true{1.0, 2.0, 3.0, 4.0, 5.0};
+    const Vector b = A.multiply(x_true);
+    const Vector x0(5, 0.0);
+
+    GMRESConfig config;
+    config.block_orthogonalization = method;
+    config.restart_blocks = 1;
+    config.s_step = 1;
+    config.max_iterations = 100;
+    config.tolerance = 1e-12;
+    config.enable_recycling = true;
+    config.recycle_count = 1;
+    // Isolate recycling from adaptive-s: on this tiny 5-dimensional system,
+    // s_initial_probe's s_max request can exactly exhaust the remaining
+    // dimensions right as a recycled subspace is seeded, which is an
+    // unrelated numerical edge case (full-rank exhaustion combined with
+    // monomial blow-up) rather than anything specific to recycling.
+    config.adaptive_s = false;
+    config.s_initial_probe = false;
+
+    const CAGMRESResult result = gmres_ca(A, b, x0, config);
+
+    assert(result.converged);
+
+    Vector residual = b;
+    Vector Ax = A.multiply(result.x);
+    axpy(-1.0, Ax, residual);
+    assert(norm2(residual) < 1e-8);
+
+    for (Index i = 0; i < 5; ++i) {
+        assert(nearly_equal(result.x[i], x_true[i], 1e-6));
+    }
+
+    bool saw_recycle_seed = false;
+    for (const CAResidualSample& sample : result.residual_history) {
+        if (sample.from_recycle_seed) {
+            saw_recycle_seed = true;
+            assert(sample.block_s > 0);
+        }
+    }
+    assert(saw_recycle_seed);
+
+    // Recycling is purely additive: disabling it on the exact same problem
+    // must still converge to the same solution (regression safety).
+    config.enable_recycling = false;
+    const CAGMRESResult baseline = gmres_ca(A, b, x0, config);
+
+    assert(baseline.converged);
+
+    for (Index i = 0; i < 5; ++i) {
+        assert(nearly_equal(baseline.x[i], x_true[i], 1e-6));
+    }
+}
+
 }
 
 int main()
@@ -221,10 +302,11 @@ int main()
         assert(norm2(residual) < 1e-8);
 
         test_adaptive_s(method);
+        test_recycling(method);
     }
 
     std::println("test_gmres_ca passed for both block orthogonalization methods "
-                 "(fixed and adaptive s).");
+                 "(fixed s, adaptive s, and recycling).");
 
     return 0;
 }

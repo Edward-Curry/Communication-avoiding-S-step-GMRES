@@ -169,6 +169,33 @@ int main(int argc, char** argv)
 
     assert(gmres::norm2_mpi(residual) < config.tolerance);
 
+    // Block recycling smoke test: restart_blocks=1, s_step=1 forces several
+    // restart cycles on this 2-dimensional system, giving a recycled subspace
+    // from one cycle's winning block a real chance to seed the next.
+    gmres::GMRESConfig recycling_config = config;
+    recycling_config.restart_blocks = 1;
+    recycling_config.s_step = 1;
+    recycling_config.max_iterations = 20;
+    recycling_config.enable_recycling = true;
+    recycling_config.recycle_count = 1;
+    // Isolate recycling from adaptive-s: on this tiny 2-dimensional system,
+    // s_initial_probe's s_max request can exactly exhaust the remaining
+    // dimensions right as a recycled subspace is seeded, an unrelated
+    // numerical edge case rather than anything specific to recycling.
+    recycling_config.adaptive_s = false;
+    recycling_config.s_initial_probe = false;
+
+    gmres::CAGMRESMPIResult recycled = gmres::gmres_ca_mpi(A, b, x0, recycling_config);
+
+    assert(recycled.converged);
+
+    gmres::DistributedVector Ax_recycled = A.multiply(recycled.x);
+    gmres::DistributedVector residual_recycled = b;
+
+    gmres::axpy_local(-1.0, Ax_recycled, residual_recycled);
+
+    assert(gmres::norm2_mpi(residual_recycled) < recycling_config.tolerance);
+
     if (rank == 0)
     {
         std::println("MPI CA-GMRES test passed.");

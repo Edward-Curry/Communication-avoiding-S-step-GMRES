@@ -17,6 +17,10 @@ struct CAResidualSample {
     // adaptive-s policy for that block). 0 for the initial and restart-
     // recomputed samples, which do not correspond to a single block.
     Index block_s = 0;
+    // true for the synthetic sample recorded right after a cycle seeds itself
+    // from a recycled subspace (before any new block is generated). block_s
+    // holds the number of recycled columns actually used (0 if none).
+    bool from_recycle_seed = false;
 };
 
 using CAResidualHistory = std::vector<CAResidualSample>;

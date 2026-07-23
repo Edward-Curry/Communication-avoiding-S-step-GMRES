@@ -1,9 +1,11 @@
 #include "communication_avoiding/gmres_ca.hpp"
 
+#include "common/dense_block.hpp"
 #include "common/vector_ops.hpp"
 #include "communication_avoiding/gmres_ca_step.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace gmres {
 
@@ -63,11 +65,16 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
         return result;
     }
 
+    // Recycled subspace carried across restart cycles ("keep most recent
+    // winner": each cycle's own best blocks, when there are any, replace this
+    // outright). Starts empty, so the first cycle is unaffected.
+    DenseBlock recycled_U;
+
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
 
         CAGMRESCycleResult cycle =
-            gmres_ca_cycle(A, b, result.x, r, beta, config);
+            gmres_ca_cycle(A, b, result.x, r, beta, config, recycled_U);
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -78,11 +85,16 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
             result.residual_history.push_back(sample);
         }
 
-        if (cycle.converged) {
-            result.converged = true;
-            return result;
+        if (config.enable_recycling && cycle.recycle_candidate_block.cols() > 0) {
+            recycled_U = std::move(cycle.recycle_candidate_block);
         }
 
+        // Always verify against a freshly recomputed residual rather than
+        // trusting the cycle's internal (Givens-based) estimate outright:
+        // over many rotations - especially across a recycled-subspace seed -
+        // the estimate can drift from the true residual, and this recompute
+        // is the safety net that catches it before reporting false
+        // convergence.
         r = compute_residual(A, b, result.x);
         beta = norm2(r);
 

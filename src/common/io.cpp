@@ -152,8 +152,8 @@ namespace gmres
             output
                 << ",block_orthogonalization,partial_cholesky_stopping_rule,"
                    "partial_cholesky_condition_limit,adaptive_s,s_min,s_max,"
-                   "s_grow_after,s_initial_probe,verbose,initial_guess,"
-                   "exact_solution,right_hand_side\n";
+                   "s_grow_after,s_initial_probe,enable_recycling,recycle_count,"
+                   "verbose,initial_guess,exact_solution,right_hand_side\n";
 
             write_common_values(output, experiment);
             output
@@ -166,6 +166,8 @@ namespace gmres
                 << experiment.config.s_max << ','
                 << experiment.config.s_grow_after << ','
                 << (experiment.config.s_initial_probe ? "true" : "false") << ','
+                << (experiment.config.enable_recycling ? "true" : "false") << ','
+                << experiment.config.recycle_count << ','
                 << (experiment.config.verbose ? "true" : "false") << ','
                 << std::quoted(experiment.initial_guess_description) << ','
                 << std::quoted(experiment.exact_solution_description) << ','

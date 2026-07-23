@@ -1,9 +1,11 @@
 #include "communication_avoiding/gmres_ca_mpi.hpp"
 
 #include "communication_avoiding/gmres_ca_mpi_step.hpp"
+#include "parallel/distributed_dense_block.hpp"
 #include "parallel/distributed_vector_ops.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace gmres {
 
@@ -67,11 +69,16 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
         return result;
     }
 
+    // Recycled subspace carried across restart cycles ("keep most recent
+    // winner": each cycle's own best blocks, when there are any, replace this
+    // outright). Starts empty, so the first cycle is unaffected.
+    DistributedDenseBlock recycled_U;
+
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
 
         CAGMRESMPICycleResult cycle =
-            gmres_ca_mpi_cycle(A, b, result.x, r, beta, config);
+            gmres_ca_mpi_cycle(A, b, result.x, r, beta, config, recycled_U);
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -82,11 +89,16 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
             result.residual_history.push_back(sample);
         }
 
-        if (cycle.converged) {
-            result.converged = true;
-            return result;
+        if (config.enable_recycling && cycle.recycle_candidate_block.cols() > 0) {
+            recycled_U = std::move(cycle.recycle_candidate_block);
         }
 
+        // Always verify against a freshly recomputed residual rather than
+        // trusting the cycle's internal (Givens-based) estimate outright:
+        // over many rotations - especially across a recycled-subspace seed -
+        // the estimate can drift from the true residual, and this recompute
+        // is the safety net that catches it before reporting false
+        // convergence.
         r = compute_residual_mpi(A, b, result.x);
         beta = norm2_mpi(r);
 

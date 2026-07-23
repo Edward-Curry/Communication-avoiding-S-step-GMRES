@@ -46,6 +46,20 @@ namespace gmres
         // s_max. When enabled, s_step no longer sets the starting width.
         bool s_initial_probe = true;
 
+        // Block recycling across restart cycles. Orthogonal to adaptive_s /
+        // s_initial_probe (either, both, or neither may be on at once). After
+        // each restart cycle, the recycle_count newly generated blocks with
+        // the largest relative residual drop are kept and used to augment the
+        // START of the next cycle's search space (GCRO-DR style): the full
+        // restart_blocks worth of brand-new blocks is still generated every
+        // cycle, unreduced - recycling only adds a head start, never replaces
+        // cycle budget. "Keep most recent winner": each cycle's own winners
+        // replace the previous cycle's recycled subspace outright (no
+        // cross-cycle score comparison, no extra state beyond the columns
+        // themselves). Defaults to off until validated.
+        bool enable_recycling = false;
+        Index recycle_count = 2;
+
         BlockOrthogonalizationMethod block_orthogonalization =
             BlockOrthogonalizationMethod::BCGS2CholQR;
         PartialCholeskyStoppingRule partial_cholesky_stopping_rule =

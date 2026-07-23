@@ -374,6 +374,76 @@ void multiply_add_columns(const DenseBlock& block,
                 1);
 }
 
+void multiply_add_columns_from(const DenseBlock& block,
+                               Index first_col,
+                               Index cols,
+                               const Vector& coefficients,
+                               Vector& target)
+{
+    if (first_col > block.cols() || cols > block.cols() - first_col) {
+        throw std::invalid_argument("multiply_add_columns_from: column range exceeds the block width.");
+    }
+
+    if (coefficients.size() != cols) {
+        throw std::invalid_argument("multiply_add_columns_from: coefficient count does not match cols.");
+    }
+
+    if (target.size() != block.rows()) {
+        throw std::invalid_argument("multiply_add_columns_from: target has wrong size.");
+    }
+
+    if (block.rows() == 0 || cols == 0) {
+        return;
+    }
+
+    cblas_dgemv(CblasColMajor,
+                CblasNoTrans,
+                blas_size(block.rows()),
+                blas_size(cols),
+                1.0,
+                block.column(first_col),
+                blas_size(block.rows()),
+                coefficients.data(),
+                1,
+                1.0,
+                target.data(),
+                1);
+}
+
+Vector transpose_multiply_vector(const DenseBlock& block,
+                                 Index cols,
+                                 const Vector& x)
+{
+    if (cols > block.cols()) {
+        throw std::invalid_argument("transpose_multiply_vector: cols exceeds the block width.");
+    }
+
+    if (x.size() != block.rows()) {
+        throw std::invalid_argument("transpose_multiply_vector: x has wrong size.");
+    }
+
+    Vector result(cols, 0.0);
+
+    if (block.rows() == 0 || cols == 0) {
+        return result;
+    }
+
+    cblas_dgemv(CblasColMajor,
+                CblasTrans,
+                blas_size(block.rows()),
+                blas_size(cols),
+                1.0,
+                block.data(),
+                blas_size(block.rows()),
+                x.data(),
+                1,
+                0.0,
+                result.data(),
+                1);
+
+    return result;
+}
+
 void add_in_place(DenseBlock& target,
                   const DenseBlock& source)
 {

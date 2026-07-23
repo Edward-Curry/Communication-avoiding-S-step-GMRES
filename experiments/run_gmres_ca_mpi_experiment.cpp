@@ -33,6 +33,10 @@ namespace
             {
                 kind = "initial";
             }
+            else if (sample.from_recycle_seed)
+            {
+                kind = "recycle_seeded";
+            }
             else if (sample.recomputed)
             {
                 kind = "restart_recomputed";

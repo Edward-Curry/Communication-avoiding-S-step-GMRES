@@ -64,6 +64,19 @@ void multiply_add_columns(const DenseBlock& block,
                           const Vector& coefficients,
                           Vector& target);
 
+// target += block(:, first_col:first_col+cols) * coefficients, without
+// copying the selected columns (they are already contiguous in storage).
+void multiply_add_columns_from(const DenseBlock& block,
+                               Index first_col,
+                               Index cols,
+                               const Vector& coefficients,
+                               Vector& target);
+
+// Returns block(:, 0:cols)^T * x.
+Vector transpose_multiply_vector(const DenseBlock& block,
+                                 Index cols,
+                                 const Vector& x);
+
 void add_in_place(DenseBlock& target,
                   const DenseBlock& source);
 

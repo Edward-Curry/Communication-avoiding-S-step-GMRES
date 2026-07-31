@@ -47,17 +47,25 @@ namespace gmres
         // s_max. When enabled, s_step no longer sets the starting width.
         bool s_initial_probe = true;
 
-        // Block recycling across restart cycles. Orthogonal to adaptive_s /
-        // s_initial_probe (either, both, or neither may be on at once). After
-        // each restart cycle, the recycle_count newly generated blocks with
-        // the largest relative residual drop are kept and used to augment the
-        // START of the next cycle's search space (GCRO-DR style): the full
-        // restart_blocks worth of brand-new blocks is still generated every
-        // cycle, unreduced - recycling only adds a head start, never replaces
-        // cycle budget. "Keep most recent winner": each cycle's own winners
-        // replace the previous cycle's recycled subspace outright (no
-        // cross-cycle score comparison, no extra state beyond the columns
-        // themselves). Defaults to off until validated.
+        // Deflated restarting (GMRES-DR, Morgan 2002). When enabled, each
+        // restart cycle keeps the recycle_count smallest-magnitude HARMONIC
+        // RITZ vectors - approximate eigenvectors of the smallest eigenvalues,
+        // the slowest-converging directions restarting would otherwise discard
+        // and rediscover - and starts the next cycle from the subspace they
+        // span (plus the residual direction), then grows the usual s-step
+        // Krylov space on top. The carried Arnoldi relation A V = V H makes the
+        // restart free of extra matrix-vector products. This deflates the small
+        // eigenvalues out of the restarted problem, recovering much of
+        // un-restarted GMRES's convergence at restarted cost (measured: 2.7x
+        // fewer iterations on a 40^2 Laplacian, 5.4x on 80^2, up to ~19x on
+        // cdde6 - the benefit grows with problem difficulty). A stalled or
+        // numerically degenerate deflated restart self-heals: the driver
+        // discards that subspace and the next cycle falls back to plain GMRES.
+        //
+        // recycle_count is a count of VECTORS (harmonic Ritz directions), on
+        // the order of the number of small/clustered eigenvalues to deflate;
+        // larger helps more on hard/non-symmetric spectra (cdde6: 500 iters at
+        // 5, 95 at 40). Defaults to off. Works with fixed or adaptive s.
         bool enable_recycling = false;
         Index recycle_count = 2;
 

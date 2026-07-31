@@ -4,6 +4,7 @@
 #include "common/vector_ops.hpp"
 #include "communication_avoiding/gmres_ca_step.hpp"
 
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -65,10 +66,12 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
         return result;
     }
 
-    // Recycled subspace carried across restart cycles ("keep most recent
-    // winner": each cycle's own best blocks, when there are any, replace this
-    // outright). Starts empty, so the first cycle is unaffected.
-    DenseBlock recycled_U;
+    // GMRES-DR deflation subspace carried across restart cycles. Starts empty
+    // (k == 0), so the first cycle runs undeflated and produces the first
+    // subspace; each later cycle deflates with the previous cycle's harmonic
+    // Ritz vectors and returns a refreshed subspace. Only used when
+    // config.enable_recycling is set.
+    DeflationSubspace deflation;
 
     // Newton/ScaledNewton shifts, computed once (from the first cycle's
     // Monomial-bootstrap Hessenberg) and reused for the rest of the solve.
@@ -78,9 +81,11 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
 
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
+        const Scalar beta_before = beta;
 
-        CAGMRESCycleResult cycle =
-            gmres_ca_cycle(A, b, result.x, r, beta, config, recycled_U, shifts);
+        CAGMRESCycleResult cycle = config.enable_recycling
+            ? gmres_ca_dr_cycle(A, b, result.x, r, beta, config, deflation, shifts)
+            : gmres_ca_cycle(A, b, result.x, r, beta, config, shifts);
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -91,22 +96,28 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
             result.residual_history.push_back(sample);
         }
 
-        if (config.enable_recycling && cycle.recycle_candidate_block.cols() > 0) {
-            recycled_U = std::move(cycle.recycle_candidate_block);
-        }
-
         if (shifts.empty() && !cycle.bootstrap_shifts.empty()) {
             shifts = std::move(cycle.bootstrap_shifts);
         }
 
         // Always verify against a freshly recomputed residual rather than
-        // trusting the cycle's internal (Givens-based) estimate outright:
-        // over many rotations - especially across a recycled-subspace seed -
-        // the estimate can drift from the true residual, and this recompute
-        // is the safety net that catches it before reporting false
-        // convergence.
+        // trusting the cycle's internal least-squares estimate outright: over
+        // many blocks - especially across a deflated restart - the estimate can
+        // drift from the true residual, and this recompute is the safety net
+        // that catches it before reporting false convergence.
         r = compute_residual(A, b, result.x);
         beta = norm2(r);
+
+        if (config.enable_recycling) {
+            // Adopt this cycle's deflation subspace, unless the cycle failed to
+            // reduce the residual: a stalled or non-finite deflated restart is
+            // discarded so the next cycle falls back to plain GMRES. Self-
+            // healing keeps a poor subspace (e.g. weak harmonic Ritz vectors on
+            // a strongly non-symmetric matrix) from stalling the whole solve.
+            const bool made_progress = std::isfinite(beta) && beta < beta_before;
+            deflation = made_progress ? std::move(cycle.next_deflation)
+                                      : DeflationSubspace();
+        }
 
         result.residual_history.push_back({result.iterations, beta, true});
 

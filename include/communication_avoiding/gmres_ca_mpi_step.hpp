@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/gmres_ca_mpi_step.hpp
+ * @brief Declares MPI CA-GMRES restart cycles.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_GMRES_CA_MPI_STEP_HPP
 #define COMMUNICATION_AVOIDING_GMRES_CA_MPI_STEP_HPP
 
@@ -10,16 +18,21 @@
 
 namespace gmres {
 
-// Distributed GMRES-DR deflation subspace carried across restart cycles: the
-// MPI counterpart of DeflationSubspace. V is distributed by rows (n x (k+1),
-// orthonormal columns); Hbar is small and replicated on every rank. Together
-// they satisfy A V(:,0:k) = V(:,0:k+1) Hbar. Empty (k == 0) on the first cycle.
+/**
+ * @brief Carries a distributed GMRES-DR subspace between cycles.
+ */
 struct DistributedDeflationSubspace {
-    DistributedDenseBlock V; // global n x (k+1), row-distributed
-    DenseMatrix Hbar;        // (k+1) x k, replicated
+    /// @brief Row-distributed orthonormal seed vectors.
+    DistributedDenseBlock V;
+    /// @brief Replicated Arnoldi relation for the retained subspace.
+    DenseMatrix Hbar;
+    /// @brief Number of retained harmonic Ritz vectors.
     Index k = 0;
 };
 
+/**
+ * @brief Stores the result of one MPI CA-GMRES cycle.
+ */
 struct CAGMRESMPICycleResult {
     DistributedVector x;
     CAResidualHistory residual_history;
@@ -27,47 +40,64 @@ struct CAGMRESMPICycleResult {
     Index iterations = 0;
     bool converged = false;
 
-    // The deflation subspace for the NEXT cycle, computed by GMRES-DR from this
-    // cycle's harmonic Ritz vectors plus the residual direction (empty, k == 0,
-    // when recycling is off or too few columns were built). Only
-    // gmres_ca_dr_mpi_cycle populates this; the plain gmres_ca_mpi_cycle leaves
-    // it empty.
+    /// @brief Deflation subspace prepared for the next cycle.
     DistributedDeflationSubspace next_deflation;
 
-    // Real, Leja-ordered Ritz-value shifts extracted from THIS cycle's own
-    // Hessenberg matrix. Only populated when this cycle ran in bootstrap mode
-    // (config.polynomial_basis wants Newton/ScaledNewton but the shifts
-    // passed in were empty); empty otherwise. Replicated (identical on every
-    // rank). Callers adopt this wholesale as the shift list for subsequent
-    // cycles.
+    /// @brief Replicated Leja-ordered Ritz shifts from a bootstrap cycle.
     Vector bootstrap_shifts;
+
+    /// @brief Width to carry into the next adaptive cycle.
+    Index adapted_s = 0;
 };
 
-// Plain restarted CA-GMRES cycle (no deflation), used when
-// config.enable_recycling is false. shifts behaves as in the sequential
-// gmres_ca_cycle.
+/**
+ * @brief Executes one non-deflated MPI CA-GMRES restart cycle.
+ * @param A Distributed system matrix.
+ * @param b Distributed right-hand side.
+ * @param x_start Distributed solution at cycle entry.
+ * @param r_start Distributed residual at cycle entry.
+ * @param beta Global norm of r_start.
+ * @param initial_beta Initial global residual norm.
+ * @param config Solver configuration.
+ * @param shifts Replicated Newton shifts, or an empty vector for bootstrap.
+ * @param carried_s Width accepted by the preceding cycle.
+ * @return Updated solution, residual history, and adaptive state.
+ */
 CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                          const DistributedVector& b,
                                          const DistributedVector& x_start,
                                          const DistributedVector& r_start,
                                          Scalar beta,
+                                         Scalar initial_beta,
                                          const GMRESConfig& config,
-                                         const Vector& shifts = Vector());
+                                         const Vector& shifts = Vector(),
+                                         Index carried_s = 0);
 
-// GMRES-DR cycle (deflated restart), used when config.enable_recycling is true.
-// The harmonic Ritz eigenproblem, QR, and least-squares all run on the small
-// replicated Hessenberg, so the only new communication versus the plain cycle
-// is one Allreduce of the k+1 residual coordinates at a deflated start; the
-// deflation vectors are mapped back with a purely local basis combination.
+/**
+ * @brief Executes one deflated MPI CA-GMRES restart cycle.
+ * @param A Distributed system matrix.
+ * @param b Distributed right-hand side.
+ * @param x_start Distributed solution at cycle entry.
+ * @param r_start Distributed residual at cycle entry.
+ * @param beta Global norm of r_start.
+ * @param initial_beta Initial global residual norm.
+ * @param config Solver configuration.
+ * @param deflation Retained distributed subspace from the preceding cycle.
+ * @param shifts Replicated Newton shifts, or an empty vector for bootstrap.
+ * @param carried_s Width accepted by the preceding cycle.
+ * @return Updated solution, residual history, and next deflation subspace.
+ */
 CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                             const DistributedVector& b,
                                             const DistributedVector& x_start,
                                             const DistributedVector& r_start,
                                             Scalar beta,
+                                            Scalar initial_beta,
                                             const GMRESConfig& config,
                                             const DistributedDeflationSubspace& deflation =
                                                 DistributedDeflationSubspace(),
-                                            const Vector& shifts = Vector());
+                                            const Vector& shifts = Vector(),
+                                            Index carried_s = 0);
 
 }
 

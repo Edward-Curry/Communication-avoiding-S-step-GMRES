@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_gmres_ca.cpp
+ * @brief Tests sequential communication-avoiding GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/gmres_ca.hpp"
 
 #include "common/config.hpp"
@@ -14,11 +22,22 @@
 
 namespace {
 
+/**
+ * @brief Tests two scalar values for approximate equality.
+ * @param a First value.
+ * @param b Second value.
+ * @param tolerance Permitted absolute difference.
+ * @return True when the values are within the tolerance.
+ */
 bool nearly_equal(gmres::Scalar a, gmres::Scalar b, gmres::Scalar tolerance)
 {
     return std::abs(a - b) < tolerance;
 }
 
+/**
+ * @brief Verifies monomial Hessenberg assembly for one orthogonalization method.
+ * @param method Block orthogonalization method under test.
+ */
 void test_hessenberg_assembly(
     gmres::BlockOrthogonalizationMethod method)
 {
@@ -89,9 +108,10 @@ void test_hessenberg_assembly(
     }
 }
 
-// Drives the adaptive s-step path (varying block widths, growth and clamping)
-// on a small symmetric tridiagonal system and checks it still converges to the
-// exact solution.
+/**
+ * @brief Verifies adaptive block selection and the initial block probe.
+ * @param method Block orthogonalization method under test.
+ */
 void test_adaptive_s(gmres::BlockOrthogonalizationMethod method)
 {
     using namespace gmres;
@@ -130,6 +150,8 @@ void test_adaptive_s(gmres::BlockOrthogonalizationMethod method)
     config.restart_blocks = 5;
     config.max_iterations = 100;
     config.tolerance = 1e-12;
+    // Keep this test on the non-recycled path.
+    config.enable_recycling = false;
 
     const CAGMRESResult result = gmres_ca(A, b, x0, config);
 
@@ -144,8 +166,7 @@ void test_adaptive_s(gmres::BlockOrthogonalizationMethod method)
         assert(nearly_equal(result.x[i], x_true[i], 1e-7));
     }
 
-    // Same solve with the initial-s probe: the first block of the cycle must
-    // request s_max, and the solver must still converge to the same solution.
+    // The initial probe requests the maximum block width.
     config.s_initial_probe = true;
 
     const CAGMRESResult probed = gmres_ca(A, b, x0, config);
@@ -167,9 +188,10 @@ void test_adaptive_s(gmres::BlockOrthogonalizationMethod method)
     }
 }
 
-// Drives block recycling. restart_blocks=1, s_step=1 forces many restart
-// cycles on this 5-dimensional system, so a recycled subspace from one
-// cycle's winning block gets a real chance to seed the next.
+/**
+ * @brief Verifies recycled-subspace seeding across restart cycles.
+ * @param method Block orthogonalization method under test.
+ */
 void test_recycling(gmres::BlockOrthogonalizationMethod method)
 {
     using namespace gmres;
@@ -206,11 +228,7 @@ void test_recycling(gmres::BlockOrthogonalizationMethod method)
     config.tolerance = 1e-12;
     config.enable_recycling = true;
     config.recycle_count = 1;
-    // Isolate recycling from adaptive-s: on this tiny 5-dimensional system,
-    // s_initial_probe's s_max request can exactly exhaust the remaining
-    // dimensions right as a recycled subspace is seeded, which is an
-    // unrelated numerical edge case (full-rank exhaustion combined with
-    // monomial blow-up) rather than anything specific to recycling.
+    // Isolate recycling from adaptive block selection.
     config.adaptive_s = false;
     config.s_initial_probe = false;
 
@@ -236,8 +254,7 @@ void test_recycling(gmres::BlockOrthogonalizationMethod method)
     }
     assert(saw_recycle_seed);
 
-    // Recycling is purely additive: disabling it on the exact same problem
-    // must still converge to the same solution (regression safety).
+    // The non-recycled reference must also converge.
     config.enable_recycling = false;
     const CAGMRESResult baseline = gmres_ca(A, b, x0, config);
 
@@ -248,13 +265,10 @@ void test_recycling(gmres::BlockOrthogonalizationMethod method)
     }
 }
 
-// Verifies the Newton-basis Hessenberg recovery directly: the Arnoldi-type
-// identity A*basis_col_j = sum_i H[i][j]*basis_col_i must hold for every
-// column, exactly like test_hessenberg_assembly checks for Monomial. This is
-// the highest-risk piece of the Newton implementation (a subtle algebra
-// error here produces plausible-looking but wrong results - see
-// CLAUDE_CODE_SUMMARY.txt), so it is checked independently of any solver
-// loop.
+/**
+ * @brief Verifies shifted Hessenberg assembly for the Newton basis.
+ * @param method Block orthogonalization method under test.
+ */
 void test_newton_hessenberg_assembly(
     gmres::BlockOrthogonalizationMethod method)
 {
@@ -330,13 +344,10 @@ void test_newton_hessenberg_assembly(
     }
 }
 
-// Drives Newton and ScaledNewton basis generation on a small symmetric
-// system and checks convergence to the exact solution. With no truncation,
-// Newton/ScaledNewton span the SAME Krylov subspace as Monomial at every
-// step (any real shift set expresses the same degree-(s-1) polynomial
-// space), so this is a CORRECTNESS check, not a "faster than Monomial"
-// check - see CLAUDE_CODE_SUMMARY.txt for why Newton's practical benefit
-// depends on shift quality/diversity, which is not guaranteed here.
+/**
+ * @brief Verifies Newton and scaled-Newton basis convergence.
+ * @param method Block orthogonalization method under test.
+ */
 void test_newton_basis(gmres::BlockOrthogonalizationMethod method)
 {
     using namespace gmres;
@@ -373,6 +384,8 @@ void test_newton_basis(gmres::BlockOrthogonalizationMethod method)
     config.s_step = 2;
     config.max_iterations = 100;
     config.tolerance = 1e-12;
+    // Isolate polynomial-basis behaviour from recycling.
+    config.enable_recycling = false;
 
     const std::vector<PolynomialBasisType> basis_types{
         PolynomialBasisType::Newton,
@@ -399,18 +412,15 @@ void test_newton_basis(gmres::BlockOrthogonalizationMethod method)
 
 }
 
+/**
+ * @brief Runs the sequential CA-GMRES test suite.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     using namespace gmres;
 
-    /*
-        Matrix:
-
-        [4 1]
-        [1 3]
-
-        Stored in CSR format.
-    */
+    // Symmetric two-by-two reference matrix in CSR format.
     SparseMatrixCSR A(
         2,
         2,
@@ -428,6 +438,8 @@ int main()
     config.max_iterations = 100;
     config.tolerance = 1e-8;
     config.verbose = true;
+    // Baseline solve uses the non-recycled cycle.
+    config.enable_recycling = false;
 
     const std::vector<BlockOrthogonalizationMethod> methods{
         BlockOrthogonalizationMethod::BCGS2CholQR,

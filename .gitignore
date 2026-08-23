@@ -1,3 +1,40 @@
 build/
 *.o
 *.exe
+*.out
+*.err
+
+# Local thesis and assistant working material.
+/Edward-Curry-Thesis/
+/thesis/
+/.agents/
+/.claude/
+/CLAUDE_CODE_SUMMARY.txt
+/tools/
+
+# Large Matrix Market inputs are supplied locally for experiments.
+/data/matrices/*.mtx
+!/data/matrices/test_3x3.mtx
+!/data/matrices/test_symmetric_3x3.mtx
+!/data/matrices/parabolic_fem.mtx
+!/data/matrices/parabolic_fem_b.mtx
+
+# Archived campaign helpers are retained locally with their experiment data.
+/scripts/deploy_scatter.sh
+/scripts/setup_campaign_trees.sh
+/scripts/setup_final_trees.sh
+/scripts/setup_recycle.sh
+/scripts/setup_suitesparse.sh
+/scripts/setup_synge.sh
+/scripts/submit_campaign.sh
+/scripts/submit_fill.sh
+/scripts/submit_final.sh
+/scripts/submit_full.sh
+/scripts/submit_recycle.sh
+/scripts/submit_repeats.sh
+/scripts/submit_scaling.sh
+/scripts/submit_strong.sh
+/scripts/submit_suitesparse.sh
+/scripts/submit_weak.sh
+/scripts/submit_weak_recycle_scaled.sh
+/scripts/validate_weak_recycle.py

@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/block_orthogonalization.cpp
+ * @brief Implements block modified Gram-Schmidt orthogonalization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/block_orthogonalization.hpp"
 
 #include <cblas.h>
@@ -11,6 +19,12 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Truncates block factor matrices to accepted columns.
+ * @param R_old Coefficients against the existing basis.
+ * @param R_block Intra-block coefficients.
+ * @param accepted Number of accepted columns.
+ */
 void truncate_r_factors(DenseMatrix& R_old, DenseMatrix& R_block, Index accepted)
 {
     for (Vector& row : R_old) {
@@ -58,21 +72,18 @@ BlockOrthogonalizationResult block_modified_gram_schmidt(const DenseBlock& old_b
     for (Index j = 0; j < block_size; ++j) {
         std::copy(input_block.column(j), input_block.column(j) + rows, w.begin());
 
-        // First: orthogonalise this column against the old basis.
         for (Index i = 0; i < old_cols; ++i) {
             const Scalar coefficient = cblas_ddot(n, old_basis.column(i), 1, w.data(), 1);
             result.R_old[i][j] = coefficient;
             cblas_daxpy(n, -coefficient, old_basis.column(i), 1, w.data(), 1);
         }
 
-        // Second: orthogonalise against previous columns in this new block.
         for (Index i = 0; i < accepted; ++i) {
             const Scalar coefficient = cblas_ddot(n, Q.column(i), 1, w.data(), 1);
             result.R_block[i][j] = coefficient;
             cblas_daxpy(n, -coefficient, Q.column(i), 1, w.data(), 1);
         }
 
-        // Third: normalise this new column.
         const Scalar remaining_norm = cblas_dnrm2(n, w.data(), 1);
 
         if (remaining_norm == 0.0) {

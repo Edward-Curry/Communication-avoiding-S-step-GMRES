@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/distributed_dense_block.cpp
+ * @brief Implements row-distributed dense block operations.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/distributed_dense_block.hpp"
 
 #include <stdexcept>

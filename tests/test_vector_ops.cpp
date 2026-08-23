@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_vector_ops.cpp
+ * @brief Tests dense vector operations.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/vector_ops.hpp"
 
 #include <cassert>
@@ -5,6 +13,10 @@
 #include <print>
 #include <stdexcept>
 
+/**
+ * @brief Runs the vector operations test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     gmres::Vector x = {1.0, 2.0, 3.0};

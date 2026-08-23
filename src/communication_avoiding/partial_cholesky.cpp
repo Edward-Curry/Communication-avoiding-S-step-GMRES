@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/partial_cholesky.cpp
+ * @brief Implements condition-limited partial Cholesky factorization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/partial_cholesky.hpp"
 
 #include <algorithm>
@@ -11,6 +19,11 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Converts a project dimension to the LAPACK integer type.
+ * @param size Dimension to convert.
+ * @return LAPACK-compatible dimension.
+ */
 lapack_int lapack_size(Index size)
 {
     if (size > static_cast<Index>(std::numeric_limits<lapack_int>::max())) {
@@ -20,6 +33,11 @@ lapack_int lapack_size(Index size)
     return static_cast<lapack_int>(size);
 }
 
+/**
+ * @brief Estimates the one-norm condition number of an upper-triangular factor.
+ * @param upper_triangular Square upper-triangular factor.
+ * @return Estimated condition number, or infinity for a singular factor.
+ */
 Scalar estimate_upper_triangular_condition(const DenseBlock& upper_triangular)
 {
     if (upper_triangular.rows() != upper_triangular.cols()) {
@@ -64,9 +82,7 @@ PartialCholeskyResult partial_cholesky(const DenseBlock& gram,
 
     const Index size = gram.rows();
 
-    // Column scales from the Gram diagonal. Columns after the first
-    // non-positive or non-finite diagonal are unusable, so the usable
-    // prefix ends there.
+    // The usable prefix ends at the first invalid Gram diagonal.
     Vector scale(size, 0.0);
     Index limit = size;
 
@@ -81,10 +97,7 @@ PartialCholeskyResult partial_cholesky(const DenseBlock& gram,
         scale[i] = std::sqrt(diagonal);
     }
 
-    // Factor the symmetrically scaled Gram matrix D^{-1} G D^{-1}, whose
-    // diagonal is 1. Monomial Krylov columns can differ in norm by many
-    // orders of magnitude; without this scaling the pivot test rejects
-    // columns that are merely badly scaled rather than nearly dependent.
+    // Factor the symmetrically scaled Gram matrix.
     DenseBlock factor(size, size);
 
     const Scalar pivot_tolerance =
@@ -130,7 +143,7 @@ PartialCholeskyResult partial_cholesky(const DenseBlock& gram,
         accepted = col + 1;
     }
 
-    // Undo the column scaling: G = D (D^{-1} G D^{-1}) D implies R = R_scaled D.
+    // Undo the column scaling in the accepted factor.
     DenseBlock unscaled(accepted, accepted);
 
     for (Index col = 0; col < accepted; ++col) {

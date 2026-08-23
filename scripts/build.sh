@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# File: scripts/build.sh
+# Last updated by Edward Curry: 2026-08-23
+# Configures and builds the project with Seagull MPI settings.
+# Inputs: BUILD_DIR and BUILD_JOBS may override the defaults.
+# Output: CMake build tree containing executables and tests.
+
 set -euo pipefail
 
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

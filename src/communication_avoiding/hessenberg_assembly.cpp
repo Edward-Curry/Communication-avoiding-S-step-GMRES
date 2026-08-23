@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/hessenberg_assembly.cpp
+ * @brief Implements Hessenberg updates for accepted s-step blocks.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/hessenberg_assembly.hpp"
 
 #include <stdexcept>
@@ -6,6 +14,12 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Validates dimensions used to append one Hessenberg block.
+ * @param hessenberg Existing Hessenberg matrix.
+ * @param r_old Coefficients against the existing basis.
+ * @param r_block Intra-block coefficients.
+ */
 void check_dimensions(const DenseMatrix& hessenberg,
                       const DenseMatrix& r_old,
                       const DenseMatrix& r_block)
@@ -78,8 +92,7 @@ void append_monomial_hessenberg_block(DenseMatrix& hessenberg,
         }
     }
 
-    // A K_left = K_right. Remove contributions from previously assembled
-    // Arnoldi columns before solving for the new Hessenberg block.
+    // Remove contributions from existing Arnoldi columns.
     for (Index col = 1; col < block_size; ++col) {
         for (Index old_col = 0; old_col < previous_columns; ++old_col) {
             const Scalar coefficient = r_old[old_col][col - 1];
@@ -107,7 +120,7 @@ void append_monomial_hessenberg_block(DenseMatrix& hessenberg,
         }
     }
 
-    // Solve H_block * change_of_coordinates = right_hand_side.
+    // Solve for the new Hessenberg block.
     for (Index row = 0; row < new_rows; ++row) {
         for (Index col = 0; col < block_size; ++col) {
             Scalar value = right_hand_side[row][col];
@@ -173,8 +186,7 @@ void append_shifted_hessenberg_block(DenseMatrix& hessenberg,
 
     DenseMatrix right_hand_side(new_rows, Vector(block_size, 0.0));
 
-    // Base term: scale[col] * w_col's own decomposition (w_col = the block's
-    // own column, already known via BCGS2-CholQR's r_old/r_block).
+    // Add the scaled block decomposition.
     for (Index row = 0; row < old_size; ++row) {
         for (Index col = 0; col < block_size; ++col) {
             right_hand_side[row][col] = scale_of(col) * r_old[row][col];
@@ -187,10 +199,7 @@ void append_shifted_hessenberg_block(DenseMatrix& hessenberg,
         }
     }
 
-    // Shift term: A*w_{col-1} = scale[col]*w_col + shifts[col]*w_{col-1}, so
-    // the right-hand side also needs + shifts[col] * w_{col-1}'s own
-    // decomposition. w_{-1} := q_prev (old_basis's last column), whose
-    // decomposition is trivially the unit vector at row previous_columns.
+    // Add the shifted recurrence contribution.
     if (shifts[0] != 0.0) {
         right_hand_side[previous_columns][0] += shifts[0];
     }
@@ -209,10 +218,7 @@ void append_shifted_hessenberg_block(DenseMatrix& hessenberg,
         }
     }
 
-    // Everything below is unchanged from append_monomial_hessenberg_block:
-    // removing already-known old-basis contributions, building the
-    // change-of-coordinates matrix, and the forward-substitution solve do
-    // not depend on the recurrence, only on r_old/r_block themselves.
+    // Remove contributions from existing Arnoldi columns.
     for (Index col = 1; col < block_size; ++col) {
         for (Index old_col = 0; old_col < previous_columns; ++old_col) {
             const Scalar coefficient = r_old[old_col][col - 1];

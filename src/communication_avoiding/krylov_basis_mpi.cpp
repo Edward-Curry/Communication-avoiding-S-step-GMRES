@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/krylov_basis_mpi.cpp
+ * @brief Implements distributed s-step Krylov block generation.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/krylov_basis_mpi.hpp"
 
 #include "parallel/distributed_vector_ops.hpp"

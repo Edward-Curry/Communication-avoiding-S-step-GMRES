@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+"""
+@file scripts/generate_easy_matrix.py
+@brief Generates small three-dimensional SPD Matrix Market matrices.
+@author Edward Curry
+@date 2026-08-23
+"""
+
 import argparse
 from pathlib import Path
 
@@ -20,6 +27,7 @@ POISSON_FORWARD_NEIGHBORS = [
 
 
 def stored_entries(size: int, neighbors) -> int:
+    """Return the number of entries stored in a symmetric Matrix Market file."""
     points = size**3
     edges = sum(
         (size - abs(dx)) * (size - abs(dy)) * (size - abs(dz))
@@ -29,12 +37,13 @@ def stored_entries(size: int, neighbors) -> int:
 
 
 def diagonal_value(index: int) -> float:
-    # Deterministic variation keeps the all-ones solution from being an eigenvector.
+    """Return a deterministic diagonal value for the easy test matrix."""
     bucket = (index * 2654435761) % 1000
     return 0.75 + 0.5 * bucket / 999.0
 
 
 def generate(size: int, output_path: Path, matrix_kind: str) -> None:
+    """Write the requested matrix family to a Matrix Market file."""
     if matrix_kind == "easy27":
         neighbors = EASY_FORWARD_NEIGHBORS
         edge_value = -0.005
@@ -90,6 +99,7 @@ def generate(size: int, output_path: Path, matrix_kind: str) -> None:
 
 
 def main() -> None:
+    """Parse command-line arguments and generate one matrix."""
     parser = argparse.ArgumentParser(
         description="Generate an easy, large SPD Matrix Market test matrix."
     )

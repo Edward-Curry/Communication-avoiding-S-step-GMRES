@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/distributed_io.cpp
+ * @brief Implements distributed Matrix Market input and vector distribution.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/distributed_io.hpp"
 
 #include <algorithm>
@@ -30,6 +38,11 @@ namespace gmres
             std::vector<MatrixEntry> entries;
         };
 
+        /**
+         * @brief Converts a string to lower case.
+         * @param text String to convert.
+         * @return Lower-case copy of text.
+         */
         std::string lower_copy(std::string text)
         {
             std::transform(text.begin(),
@@ -43,6 +56,12 @@ namespace gmres
             return text;
         }
 
+        /**
+         * @brief Reads the next non-comment Matrix Market line.
+         * @param file Open Matrix Market file.
+         * @param filename File name used in error messages.
+         * @return First nonempty, non-comment line.
+         */
         std::string read_data_line(std::ifstream& file,
                                    const std::string& filename)
         {
@@ -59,6 +78,13 @@ namespace gmres
             return line;
         }
 
+        /**
+         * @brief Returns the contiguous local size assigned to an MPI rank.
+         * @param global_size Global vector length.
+         * @param rank MPI rank.
+         * @param comm_size Number of ranks.
+         * @return Number of locally owned entries.
+         */
         Index local_size_for_rank(Index global_size,
                                   int rank,
                                   int comm_size)
@@ -69,6 +95,13 @@ namespace gmres
             return base + (static_cast<Index>(rank) < remainder ? 1 : 0);
         }
 
+        /**
+         * @brief Returns the first global index assigned to an MPI rank.
+         * @param global_size Global vector length.
+         * @param rank MPI rank.
+         * @param comm_size Number of ranks.
+         * @return First locally owned global index.
+         */
         Index local_start_for_rank(Index global_size,
                                    int rank,
                                    int comm_size)
@@ -80,6 +113,13 @@ namespace gmres
             return rank_index * base + std::min(rank_index, remainder);
         }
 
+        /**
+         * @brief Finds the rank owning a contiguous distributed row.
+         * @param row Global row index.
+         * @param global_rows Global matrix row count.
+         * @param comm_size Number of ranks.
+         * @return Owner rank for row.
+         */
         int owner_rank_for_row(Index row,
                                Index global_rows,
                                int comm_size)
@@ -101,6 +141,12 @@ namespace gmres
             return static_cast<int>(remainder + (row - longer_rows) / base);
         }
 
+        /**
+         * @brief Converts a project count to the MPI integer type.
+         * @param value Count to convert.
+         * @param description Name used in a range-error message.
+         * @return MPI-compatible integer count.
+         */
         int checked_int(Index value,
                         const std::string& description)
         {
@@ -112,6 +158,11 @@ namespace gmres
             return static_cast<int>(value);
         }
 
+        /**
+         * @brief Reads a Matrix Market sparse matrix on rank zero.
+         * @param filename Matrix Market file path.
+         * @return Matrix dimensions and coordinate entries.
+         */
         MatrixMarketMatrix read_matrix_market_on_root(const std::string& filename)
         {
             std::ifstream file(filename);
@@ -192,6 +243,11 @@ namespace gmres
             return matrix;
         }
 
+        /**
+         * @brief Reads the first vector stored in a Matrix Market file on rank zero.
+         * @param filename Matrix Market vector-file path.
+         * @return Vector values held on rank zero.
+         */
         Vector read_matrix_market_vector_on_root(const std::string& filename)
         {
             std::ifstream file(filename);
@@ -234,12 +290,13 @@ namespace gmres
                 throw std::runtime_error("Invalid Matrix Market vector size line: " + filename);
             }
 
-            if (rows != 1 && cols != 1)
+            if (rows == 0 || cols == 0)
             {
-                throw std::runtime_error("Matrix Market vector must have one row or one column: " + filename);
+                throw std::runtime_error("Matrix Market vector has a zero dimension: " + filename);
             }
 
-            const bool column_vector = cols == 1;
+            // Use the first column of a multi-column Matrix Market array.
+            const bool column_vector = rows > 1;
             const Index vector_size = column_vector ? rows : cols;
             Vector values(vector_size, 0.0);
 
@@ -275,8 +332,18 @@ namespace gmres
                         throw std::runtime_error("Matrix Market vector index out of range: " + filename);
                     }
 
-                    const Index index = column_vector ? row - 1 : col - 1;
-                    values[index] = value;
+                    // Ignore additional right-hand-side columns.
+                    if (column_vector)
+                    {
+                        if (col == 1)
+                        {
+                            values[row - 1] = value;
+                        }
+                    }
+                    else
+                    {
+                        values[col - 1] = value;
+                    }
                 }
 
                 return values;
@@ -284,6 +351,7 @@ namespace gmres
 
             if (array)
             {
+                // Matrix Market arrays store the first column first.
                 for (Index i = 0; i < vector_size; ++i)
                 {
                     file >> values[i];
@@ -300,6 +368,12 @@ namespace gmres
             throw std::runtime_error("Unsupported Matrix Market vector storage format: " + filename);
         }
 
+        /**
+         * @brief Broadcasts a root-read status and raises the shared error.
+         * @param failed Nonzero when rank zero encountered a read failure.
+         * @param message Failure description from rank zero.
+         * @param comm MPI communicator.
+         */
         void broadcast_read_status(int failed,
                                    const std::string& message,
                                    MPI_Comm comm)

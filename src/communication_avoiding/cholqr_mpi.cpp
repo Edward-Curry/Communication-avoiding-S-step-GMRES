@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/cholqr_mpi.cpp
+ * @brief Implements distributed Cholesky QR.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/cholqr_mpi.hpp"
 
 #include "communication_avoiding/partial_cholesky.hpp"

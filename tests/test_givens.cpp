@@ -1,9 +1,21 @@
+/**
+ * @file tests/test_givens.cpp
+ * @brief Tests Givens rotation generation and application.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/givens.hpp"
 
 #include <cassert>
 #include <cmath>
 #include <print>
 
+/**
+ * @brief Runs the Givens rotation test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     gmres::Scalar a = 3.0;

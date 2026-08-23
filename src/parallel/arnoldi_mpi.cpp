@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/arnoldi_mpi.cpp
+ * @brief Implements distributed Arnoldi factorization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/arnoldi_mpi.hpp"
 
 #include "parallel/distributed_orthogonalization.hpp"

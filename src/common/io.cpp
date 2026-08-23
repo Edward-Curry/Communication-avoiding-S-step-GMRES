@@ -1,3 +1,11 @@
+/**
+ * @file src/common/io.cpp
+ * @brief Implements Matrix Market input and experiment CSV output.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/io.hpp"
 
 #include <algorithm>
@@ -17,6 +25,11 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Opens a CSV file with full floating-point precision.
+         * @param path Destination file path.
+         * @return Open output stream.
+         */
         std::ofstream open_csv(const std::filesystem::path& path)
         {
             std::ofstream output(path);
@@ -32,6 +45,11 @@ namespace gmres
             return output;
         }
 
+        /**
+         * @brief Converts a value to a filesystem-safe filename component.
+         * @param value Source value.
+         * @return Sanitised filename component.
+         */
         std::string make_filename_component(std::string value)
         {
             for (char& character : value)
@@ -58,6 +76,11 @@ namespace gmres
             return value.substr(first, last - first + 1);
         }
 
+        /**
+         * @brief Converts a block-orthogonalization method to CSV text.
+         * @param method Method to convert.
+         * @return Stable CSV label.
+         */
         const char* to_csv(BlockOrthogonalizationMethod method)
         {
             switch (method)
@@ -71,6 +94,11 @@ namespace gmres
             return "unknown";
         }
 
+        /**
+         * @brief Converts a partial-Cholesky stopping rule to CSV text.
+         * @param rule Stopping rule to convert.
+         * @return Stable CSV label.
+         */
         const char* to_csv(PartialCholeskyStoppingRule rule)
         {
             switch (rule)
@@ -84,6 +112,31 @@ namespace gmres
             return "unknown";
         }
 
+        /**
+         * @brief Converts a polynomial basis type to CSV text.
+         * @param basis Basis type to convert.
+         * @return Stable CSV label.
+         */
+        const char* to_csv(PolynomialBasisType basis)
+        {
+            switch (basis)
+            {
+            case PolynomialBasisType::Monomial:
+                return "monomial";
+            case PolynomialBasisType::Newton:
+                return "newton";
+            case PolynomialBasisType::ScaledNewton:
+                return "scaled_newton";
+            }
+
+            return "unknown";
+        }
+
+        /**
+         * @brief Converts a string to lower case.
+         * @param value String to convert.
+         * @return Lower-case copy of value.
+         */
         std::string lowercase(std::string value)
         {
             std::transform(
@@ -98,6 +151,12 @@ namespace gmres
             return value;
         }
 
+        /**
+         * @brief Reads the next non-comment Matrix Market line.
+         * @param file Open Matrix Market file.
+         * @param filename File name used in error messages.
+         * @return First nonempty, non-comment line.
+         */
         std::string read_matrix_market_data_line(
             std::ifstream& file,
             const std::string& filename)
@@ -117,14 +176,23 @@ namespace gmres
             return line;
         }
 
+        /**
+         * @brief Writes CSV metadata column names.
+         * @param output Open CSV stream.
+         */
         void write_common_header(std::ofstream& output)
         {
             output
                 << "matrix,solver,rows,cols,nonzeros,process_count,"
                    "restart,restart_blocks,s_step,max_iterations,"
-                   "absolute_tolerance";
+                   "relative_tolerance";
         }
 
+        /**
+         * @brief Writes CSV metadata values for one experiment.
+         * @param output Open CSV stream.
+         * @param experiment Experiment metadata.
+         */
         void write_common_values(std::ofstream& output,
                                  const GMRESExperimentData& experiment)
         {
@@ -142,6 +210,11 @@ namespace gmres
                 << experiment.config.tolerance;
         }
 
+        /**
+         * @brief Writes the experiment configuration CSV file.
+         * @param path Destination CSV path.
+         * @param experiment Experiment metadata and configuration.
+         */
         void write_experiment_config(
             const std::filesystem::path& path,
             const GMRESExperimentData& experiment)
@@ -152,8 +225,10 @@ namespace gmres
             output
                 << ",block_orthogonalization,partial_cholesky_stopping_rule,"
                    "partial_cholesky_condition_limit,adaptive_s,s_min,s_max,"
-                   "s_grow_after,s_initial_probe,enable_recycling,recycle_count,"
-                   "verbose,initial_guess,exact_solution,right_hand_side\n";
+                   "s_grow_after,s_initial_probe,polynomial_basis,enable_recycling,"
+                   "recycle_count,"
+                   "verbose,initial_guess,has_exact_solution,exact_solution,"
+                   "right_hand_side,write_solution_output\n";
 
             write_common_values(output, experiment);
             output
@@ -166,14 +241,22 @@ namespace gmres
                 << experiment.config.s_max << ','
                 << experiment.config.s_grow_after << ','
                 << (experiment.config.s_initial_probe ? "true" : "false") << ','
+                << to_csv(experiment.config.polynomial_basis) << ','
                 << (experiment.config.enable_recycling ? "true" : "false") << ','
                 << experiment.config.recycle_count << ','
                 << (experiment.config.verbose ? "true" : "false") << ','
                 << std::quoted(experiment.initial_guess_description) << ','
+                << (experiment.has_exact_solution ? "true" : "false") << ','
                 << std::quoted(experiment.exact_solution_description) << ','
-                << std::quoted(experiment.right_hand_side_description) << '\n';
+                << std::quoted(experiment.right_hand_side_description) << ','
+                << (experiment.write_solution_output ? "true" : "false") << '\n';
         }
 
+        /**
+         * @brief Writes the experiment convergence-history CSV file.
+         * @param path Destination CSV path.
+         * @param experiment Experiment metadata and residual history.
+         */
         void write_experiment_convergence(
             const std::filesystem::path& path,
             const GMRESExperimentData& experiment)
@@ -209,6 +292,11 @@ namespace gmres
             }
         }
 
+        /**
+         * @brief Writes the experiment performance CSV file.
+         * @param path Destination CSV path.
+         * @param experiment Experiment metadata and timing data.
+         */
         void write_experiment_performance(
             const std::filesystem::path& path,
             const GMRESExperimentData& experiment)
@@ -218,8 +306,12 @@ namespace gmres
             write_common_header(output);
             output
                 << ",converged,iterations,blocks_completed,"
-                   "residual_history_entries,solve_seconds,"
-                   "seconds_per_iteration\n";
+                    "residual_history_entries,solve_seconds,"
+                    "seconds_per_iteration,halo_statistics_available,"
+                    "halo_recv_peers_mean,halo_recv_peers_max,"
+                    "halo_send_peers_mean,halo_send_peers_max,"
+                    "halo_recv_values_mean,halo_recv_values_max,"
+                    "halo_send_values_mean,halo_send_values_max\n";
 
             write_common_values(output, experiment);
             output
@@ -237,9 +329,34 @@ namespace gmres
                         / static_cast<double>(experiment.iterations);
             }
 
+            output << ','
+                   << (experiment.halo_exchange.available ? "true" : "false");
+
+            if (experiment.halo_exchange.available)
+            {
+                output
+                    << ',' << experiment.halo_exchange.mean_receive_peers
+                    << ',' << experiment.halo_exchange.max_receive_peers
+                    << ',' << experiment.halo_exchange.mean_send_peers
+                    << ',' << experiment.halo_exchange.max_send_peers
+                    << ',' << experiment.halo_exchange.mean_receive_values
+                    << ',' << experiment.halo_exchange.max_receive_values
+                    << ',' << experiment.halo_exchange.mean_send_values
+                    << ',' << experiment.halo_exchange.max_send_values;
+            }
+            else
+            {
+                output << ",,,,,,,,";
+            }
+
             output << '\n';
         }
 
+        /**
+         * @brief Writes the experiment accuracy CSV file.
+         * @param path Destination CSV path.
+         * @param experiment Experiment metadata and accuracy data.
+         */
         void write_experiment_accuracy(
             const std::filesystem::path& path,
             const GMRESExperimentData& experiment)
@@ -270,16 +387,28 @@ namespace gmres
 
             output
                 << ','
-                << experiment.relative_residual << ','
-                << experiment.relative_forward_error << '\n';
+                << experiment.relative_residual << ',';
+
+            if (experiment.has_exact_solution)
+            {
+                output << experiment.relative_forward_error;
+            }
+
+            output << '\n';
         }
 
+        /**
+         * @brief Writes the final-solution CSV file.
+         * @param path Destination CSV path.
+         * @param experiment Experiment metadata and solution vectors.
+         */
         void write_experiment_solution(
             const std::filesystem::path& path,
             const GMRESExperimentData& experiment)
         {
-            if (experiment.solution.size()
-                != experiment.exact_solution.size())
+            if (experiment.has_exact_solution
+                && experiment.solution.size()
+                    != experiment.exact_solution.size())
             {
                 throw std::invalid_argument(
                     "Computed and exact solutions must have the same size.");
@@ -295,9 +424,6 @@ namespace gmres
 
             for (Index i = 0; i < experiment.solution.size(); ++i)
             {
-                const Scalar signed_error =
-                    experiment.solution[i] - experiment.exact_solution[i];
-
                 write_common_values(output, experiment);
                 output
                     << ','
@@ -305,10 +431,24 @@ namespace gmres
                     << experiment.iterations << ','
                     << experiment.blocks_completed << ','
                     << i << ','
-                    << experiment.solution[i] << ','
-                    << experiment.exact_solution[i] << ','
-                    << signed_error << ','
-                    << std::abs(signed_error) << '\n';
+                    << experiment.solution[i];
+
+                if (experiment.has_exact_solution)
+                {
+                    const Scalar signed_error =
+                        experiment.solution[i] - experiment.exact_solution[i];
+
+                    output
+                        << ',' << experiment.exact_solution[i]
+                        << ',' << signed_error
+                        << ',' << std::abs(signed_error);
+                }
+                else
+                {
+                    output << ",,,";
+                }
+
+                output << '\n';
             }
         }
     }
@@ -489,14 +629,14 @@ namespace gmres
                 "Invalid Matrix Market vector size line: " + filename);
         }
 
-        if (rows != 1 && cols != 1)
+        if (rows == 0 || cols == 0)
         {
             throw std::runtime_error(
-                "Matrix Market vector must have one row or one column: "
-                + filename);
+                "Matrix Market vector has a zero dimension: " + filename);
         }
 
-        const bool column_vector = cols == 1;
+        // Use the first column of a multi-column Matrix Market array.
+        const bool column_vector = rows > 1;
         const Index vector_size = column_vector ? rows : cols;
         Vector values(vector_size, 0.0);
 
@@ -538,8 +678,18 @@ namespace gmres
                         + filename);
                 }
 
-                const Index index = column_vector ? row - 1 : col - 1;
-                values[index] = value;
+                // Ignore additional right-hand-side columns.
+                if (column_vector)
+                {
+                    if (col == 1)
+                    {
+                        values[row - 1] = value;
+                    }
+                }
+                else
+                {
+                    values[col - 1] = value;
+                }
             }
 
             return values;
@@ -547,6 +697,7 @@ namespace gmres
 
         if (array)
         {
+            // Matrix Market arrays store the first column first.
             for (Scalar& value : values)
             {
                 file >> value;
@@ -703,14 +854,15 @@ namespace gmres
             output_directory / "performance";
         const std::filesystem::path accuracy_directory =
             output_directory / "accuracy";
-        const std::filesystem::path solution_directory =
-            output_directory / "solution";
 
         std::filesystem::create_directories(config_directory);
         std::filesystem::create_directories(convergence_directory);
         std::filesystem::create_directories(performance_directory);
         std::filesystem::create_directories(accuracy_directory);
-        std::filesystem::create_directories(solution_directory);
+        if (experiment.write_solution_output)
+        {
+            std::filesystem::create_directories(output_directory / "solution");
+        }
 
         write_experiment_config(
             config_directory
@@ -728,9 +880,12 @@ namespace gmres
             accuracy_directory
                 / (filename_prefix + "_accuracy.csv"),
             experiment);
-        write_experiment_solution(
-            solution_directory
-                / (filename_prefix + "_solution.csv"),
-            experiment);
+        if (experiment.write_solution_output)
+        {
+            write_experiment_solution(
+                output_directory / "solution"
+                    / (filename_prefix + "_solution.csv"),
+                experiment);
+        }
     }
 }

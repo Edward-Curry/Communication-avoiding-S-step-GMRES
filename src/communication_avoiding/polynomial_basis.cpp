@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/polynomial_basis.cpp
+ * @brief Implements Ritz shifts and harmonic-Ritz recycling vectors.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/polynomial_basis.hpp"
 
 #include <algorithm>
@@ -12,6 +20,11 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Converts a project dimension to the LAPACK integer type.
+ * @param size Dimension to convert.
+ * @return LAPACK-compatible dimension.
+ */
 lapack_int lapack_size(Index size)
 {
     if (size > static_cast<Index>(std::numeric_limits<lapack_int>::max())) {
@@ -29,8 +42,7 @@ Vector compute_ritz_shifts(const DenseMatrix& hessenberg)
         return Vector();
     }
 
-    // The square leading m x m block; Ritz values come from the projected
-    // operator, not the rectangular (m+1) x m least-squares Hessenberg.
+    // Ritz values come from the square projected Hessenberg block.
     const Index m = hessenberg.front().size();
 
     if (m == 0) {
@@ -62,7 +74,8 @@ Vector compute_ritz_shifts(const DenseMatrix& hessenberg)
 
     const lapack_int n = lapack_size(m);
 
-    const lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR,
+    // Column-major LAPACK sees the transpose, which has the same eigenvalues.
+    const lapack_int info = LAPACKE_dgeev(LAPACK_COL_MAJOR,
                                           'N',
                                           'N',
                                           n,
@@ -105,7 +118,7 @@ Vector leja_order(const Vector& shifts)
     Vector ordered;
     ordered.reserve(shifts.size());
 
-    // Seed with the largest-magnitude shift.
+    // Start from the shift with greatest magnitude.
     Index first = 0;
     for (Index i = 1; i < shifts.size(); ++i) {
         if (std::abs(shifts[i]) > std::abs(shifts[first])) {
@@ -116,8 +129,7 @@ Vector leja_order(const Vector& shifts)
     ordered.push_back(shifts[first]);
     used[first] = true;
 
-    // Greedily append whichever remaining shift maximizes the product of
-    // distances to the shifts already chosen.
+    // Select the remaining shift farthest from those already chosen.
     for (Index chosen = 1; chosen < shifts.size(); ++chosen) {
         Index best = shifts.size();
         Scalar best_product = -1.0;
@@ -153,9 +165,7 @@ std::vector<Vector> harmonic_ritz_vectors(const DenseMatrix& hessenberg,
         return {};
     }
 
-    // m = square size of the accumulated Hessenberg (its column count); the
-    // full matrix is (m+1) x m, the extra row carrying the trailing
-    // subdiagonal entry the harmonic correction needs.
+    // The trailing row contains the Arnoldi subdiagonal contribution.
     const Index total_cols = hessenberg.front().size();
 
     if (leading_offset >= total_cols) {
@@ -174,15 +184,10 @@ std::vector<Vector> harmonic_ritz_vectors(const DenseMatrix& hessenberg,
             "harmonic_ritz_vectors: hessenberg lacks its (m+1)-th subdiagonal row.");
     }
 
-    // Trailing block: the clean (m+1) x m Arnoldi Hessenberg of the (deflated)
-    // operator over columns [leading_offset, total_cols). Seed columns
-    // [0, leading_offset) are skipped - their Hessenberg entries are an identity
-    // block, not projected-operator data.
+    // Skip leading recycled columns when forming the projected operator.
     const Index m = total_cols - leading_offset;
 
-    // Hbar (trailing (m+1) x m, row-major): Hbar[r][c] = H[offset+r][offset+c].
-    // Row m is the trailing subdiagonal (global upper-Hessenberg structure);
-    // H_sq is the leading m x m square.
+    // Extract the trailing Arnoldi Hessenberg block.
     std::vector<double> hbar((m + 1) * m, 0.0);
     for (Index r = 0; r <= m; ++r) {
         for (Index c = 0; c < m; ++c) {
@@ -190,15 +195,9 @@ std::vector<Vector> harmonic_ritz_vectors(const DenseMatrix& hessenberg,
         }
     }
 
-    // Harmonic Ritz via the GENERALIZED eigenproblem
-    //   (Hbar^T Hbar) g = theta (H_sq^T) g.
-    // Its smallest-|theta| solutions are the wanted harmonic Ritz vectors. The
-    // generalized form (rather than the reduced M = H_sq + h^2 H_sq^-T e e^T)
-    // stays robust when H_sq is near-singular - precisely the small-eigenvalue
-    // case deflation targets, where inverting H_sq overflows: dggev returns
-    // those directions as beta = 0 (theta = infinity), and they are filtered.
-    std::vector<double> a_gen(m * m, 0.0); // A = Hbar^T Hbar (symmetric)
-    std::vector<double> b_gen(m * m, 0.0); // B = H_sq^T
+    // Solve the generalized harmonic-Ritz eigenproblem without inverting H_sq.
+    std::vector<double> a_gen(m * m, 0.0);
+    std::vector<double> b_gen(m * m, 0.0);
     for (Index i = 0; i < m; ++i) {
         for (Index j = 0; j < m; ++j) {
             double acc = 0.0;
@@ -206,7 +205,7 @@ std::vector<Vector> harmonic_ritz_vectors(const DenseMatrix& hessenberg,
                 acc += hbar[r * m + i] * hbar[r * m + j];
             }
             a_gen[i * m + j] = acc;
-            b_gen[i * m + j] = hbar[j * m + i]; // H_sq^T: [i][j] = H_sq[j][i]
+            b_gen[i * m + j] = hbar[j * m + i];
         }
     }
 
@@ -238,32 +237,25 @@ std::vector<Vector> harmonic_ritz_vectors(const DenseMatrix& hessenberg,
             "LAPACKE_dggev failed while computing harmonic Ritz vectors.");
     }
 
-    // |theta_i| = |alpha_i| / |beta_i|; beta_i == 0 means theta = infinity (a
-    // direction with no small-eigenvalue content - sorted last, never chosen).
+    // Infinite generalized eigenvalues are sorted last.
     auto magnitude = [&](Index i) {
         const Scalar alpha_mag = std::hypot(alphar[i], alphai[i]);
         return beta[i] == 0.0 ? std::numeric_limits<Scalar>::infinity()
                               : alpha_mag / std::abs(beta[i]);
     };
 
-    // Ascending order by |theta|: smallest harmonic Ritz values first.
+    // Retain directions associated with the smallest harmonic Ritz values.
     std::vector<Index> order(m);
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](Index a, Index b) {
         return magnitude(a) < magnitude(b);
     });
 
-    // dggev stores a real eigenvector in column j of VR; a complex-conjugate
-    // pair (j, j+1) stores the shared eigenvector's real part in column j and
-    // imaginary part in column j+1. Both real vectors span the pair's 2D
-    // invariant subspace, so we emit both (budget permitting) and mark the
-    // partner consumed.
+    // Complex pairs contribute their real and imaginary columns.
     std::vector<char> consumed(m, 0);
     std::vector<Vector> vectors;
 
-    // Extracts VR column `col`; returns false if any entry is non-finite
-    // (dggev can emit NaN eigenvector columns for a near-defective pencil even
-    // with a finite eigenvalue - such a "vector" carries no usable direction).
+    // Reject non-finite eigenvector columns.
     auto finite_column = [&](Index col, Vector& out) {
         out.assign(m, 0.0);
         for (Index i = 0; i < m; ++i) {
@@ -280,8 +272,7 @@ std::vector<Vector> harmonic_ritz_vectors(const DenseMatrix& hessenberg,
         if (static_cast<Index>(vectors.size()) >= num_wanted) {
             break;
         }
-        // Sorted ascending, so once theta is infinite (beta == 0) every
-        // remaining direction is too - none carry small-eigenvalue content.
+        // Remaining infinite eigenvalues cannot provide retained directions.
         if (!std::isfinite(magnitude(idx))) {
             break;
         }

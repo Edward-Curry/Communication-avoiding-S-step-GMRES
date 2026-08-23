@@ -1,8 +1,20 @@
+/**
+ * @file tests/test_sparse_matrix.cpp
+ * @brief Tests sequential CSR sparse matrix multiplication.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/sparse_matrix.hpp"
 
 #include <cassert>
 #include <print>
 
+/**
+ * @brief Runs the sequential sparse matrix test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     gmres::Vector values = {

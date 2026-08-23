@@ -1,3 +1,11 @@
+/**
+ * @file src/common/vector_ops.cpp
+ * @brief Implements dense vector operations.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/vector_ops.hpp"
 
 #include <cblas.h>
@@ -9,6 +17,11 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Converts a project dimension to the BLAS integer type.
+         * @param size Dimension to convert.
+         * @return BLAS-compatible dimension.
+         */
         int blas_size(Index size)
         {
             if (size > static_cast<Index>(std::numeric_limits<int>::max()))

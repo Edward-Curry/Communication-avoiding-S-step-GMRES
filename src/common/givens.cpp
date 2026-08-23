@@ -1,3 +1,11 @@
+/**
+ * @file src/common/givens.cpp
+ * @brief Implements Givens rotation operations.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/givens.hpp"
 
 #include <cmath>

@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/gmres_ca_mpi_step.cpp
+ * @brief Implements plain and recycled distributed CA-GMRES cycles.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/gmres_ca_mpi_step.hpp"
 
 #include "common/dense_block.hpp"
@@ -22,6 +30,11 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Converts a project count to the MPI integer type.
+ * @param count Count to convert.
+ * @return MPI-compatible count.
+ */
 int mpi_count(Index count)
 {
     if (count > static_cast<Index>(std::numeric_limits<int>::max())) {
@@ -31,6 +44,11 @@ int mpi_count(Index count)
     return static_cast<int>(count);
 }
 
+/**
+ * @brief Converts a project dimension to the LAPACK integer type.
+ * @param size Dimension to convert.
+ * @return LAPACK-compatible dimension.
+ */
 lapack_int lapack_dim(Index size)
 {
     if (size > static_cast<Index>(std::numeric_limits<lapack_int>::max())) {
@@ -40,6 +58,13 @@ lapack_int lapack_dim(Index size)
     return static_cast<lapack_int>(size);
 }
 
+/**
+ * @brief Solves a leading upper-triangular system by back substitution.
+ * @param R Upper-triangular coefficient matrix.
+ * @param g Right-hand side.
+ * @param n Dimension of the leading system.
+ * @return Solution coefficients.
+ */
 Vector solve_upper_triangular(const DenseMatrix& R, const Vector& g, Index n)
 {
     Vector y(n, 0.0);
@@ -63,6 +88,16 @@ Vector solve_upper_triangular(const DenseMatrix& R, const Vector& g, Index n)
     return y;
 }
 
+/**
+ * @brief Applies Givens rotations to newly added Hessenberg columns.
+ * @param H Unrotated Hessenberg matrix.
+ * @param R Rotated Hessenberg matrix updated in place.
+ * @param g Least-squares right-hand side updated in place.
+ * @param cosines Stored Givens cosines.
+ * @param sines Stored Givens sines.
+ * @param columns_rotated First unrotated column, updated on return.
+ * @param total_columns Number of columns to rotate.
+ */
 void fold_hessenberg_columns(const DenseMatrix& H,
                              DenseMatrix& R,
                              Vector& g,
@@ -88,11 +123,12 @@ void fold_hessenberg_columns(const DenseMatrix& H,
     columns_rotated = total_columns;
 }
 
-// Deflated-cycle least-squares helpers. H, g and y are all replicated (H is
-// assembled from the small replicated block factors; g is either [beta;0...] or
-// an Allreduced projection), so these run identically on every rank with no
-// communication. See gmres_ca_step.cpp for the rationale behind the SVD-based
-// dgelsd and the finite-guarantee.
+/**
+ * @brief Solves the replicated dense least-squares problem in a recycled cycle.
+ * @param H Replicated least-squares matrix with at least as many rows as columns.
+ * @param g Replicated right-hand side.
+ * @return Minimum-norm correction coefficients.
+ */
 Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
 {
     const Index rows = H.size();
@@ -146,6 +182,11 @@ Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
     return y;
 }
 
+/**
+ * @brief Forms an economy QR basis for the columns of a dense matrix.
+ * @param M Matrix whose column space is orthonormalized.
+ * @return Matrix with orthonormal columns spanning the columns of M.
+ */
 DenseMatrix qr_orthonormal_columns(const DenseMatrix& M)
 {
     const Index rows = M.size();
@@ -191,6 +232,13 @@ DenseMatrix qr_orthonormal_columns(const DenseMatrix& M)
     return Q;
 }
 
+/**
+ * @brief Computes the least-squares residual coefficients.
+ * @param H Least-squares matrix.
+ * @param g Least-squares right-hand side.
+ * @param y Correction coefficients.
+ * @return Residual coefficient vector g - Hy.
+ */
 Vector residual_coefficients(const DenseMatrix& H, const Vector& g, const Vector& y)
 {
     const Index rows = H.size();
@@ -208,8 +256,11 @@ Vector residual_coefficients(const DenseMatrix& H, const Vector& g, const Vector
     return w;
 }
 
-// 2-norm of a replicated vector (the deflated cycle's least-squares residual;
-// no MPI reduction, every rank holds the same w).
+/**
+ * @brief Computes the Euclidean norm of a replicated dense vector.
+ * @param v Replicated vector.
+ * @return Euclidean norm of v.
+ */
 Scalar euclidean_norm(const Vector& v)
 {
     Scalar sum = 0.0;
@@ -219,6 +270,15 @@ Scalar euclidean_norm(const Vector& v)
     return std::sqrt(sum);
 }
 
+/**
+ * @brief Validates common distributed CA-GMRES cycle inputs.
+ * @param A Distributed system matrix.
+ * @param b Distributed right-hand side.
+ * @param x_start Distributed solution at cycle start.
+ * @param r_start Distributed residual at cycle start.
+ * @param config Solver configuration.
+ * @param who Calling function name for error messages.
+ */
 void validate_cycle_inputs(const DistributedSparseMatrixCSR& A,
                            const DistributedVector& b,
                            const DistributedVector& x_start,
@@ -270,8 +330,10 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                          const DistributedVector& x_start,
                                          const DistributedVector& r_start,
                                          Scalar beta,
+                                         Scalar initial_beta,
                                          const GMRESConfig& config,
-                                         const Vector& shifts)
+                                         const Vector& shifts,
+                                         Index carried_s)
 {
     validate_cycle_inputs(A, b, x_start, r_start, config, "gmres_ca_mpi_cycle");
 
@@ -325,9 +387,16 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
     auto clamp_s = [&](Index s) {
         return std::min(config.s_max, std::max(config.s_min, s));
     };
-    Index s_current = config.adaptive_s ? clamp_s(config.s_step) : config.s_step;
-    if (config.adaptive_s && config.s_initial_probe) {
+    // Reuse the accepted adaptive width where available.
+    Index s_current;
+    if (!config.adaptive_s) {
+        s_current = config.s_step;
+    } else if (carried_s > 0) {
+        s_current = clamp_s(carried_s);
+    } else if (config.s_initial_probe) {
         s_current = config.s_max;
+    } else {
+        s_current = clamp_s(config.s_step);
     }
     Index consecutive_full = 0;
 
@@ -382,7 +451,7 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
             result.residual_history.push_back(
                 {result.iterations, residual_estimate, false, requested});
 
-            if (residual_estimate < config.tolerance) {
+            if (residual_estimate < config.tolerance * initial_beta) {
                 result.converged = true;
                 break;
             }
@@ -408,6 +477,11 @@ CAGMRESMPICycleResult gmres_ca_mpi_cycle(const DistributedSparseMatrixCSR& A,
         }
     }
 
+    // Retain the final adaptive width for the next restart.
+    if (config.adaptive_s) {
+        result.adapted_s = s_current;
+    }
+
     if (bootstrapping) {
         result.bootstrap_shifts = leja_order(compute_ritz_shifts(H));
     }
@@ -430,9 +504,11 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
                                             const DistributedVector& x_start,
                                             const DistributedVector& r_start,
                                             Scalar beta,
+                                            Scalar initial_beta,
                                             const GMRESConfig& config,
                                             const DistributedDeflationSubspace& deflation,
-                                            const Vector& shifts)
+                                            const Vector& shifts,
+                                            Index carried_s)
 {
     validate_cycle_inputs(A, b, x_start, r_start, config, "gmres_ca_dr_mpi_cycle");
 
@@ -495,8 +571,7 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
     if (k > 0) {
         H = deflation.Hbar;
 
-        // g = V(:,0:k+1)^T r_start: local partial projections summed across
-        // ranks (the only extra communication a deflated restart needs).
+        // Sum the residual projection across ranks.
         g = transpose_multiply_vector(basis.local_block(), k + 1, r_start.local_values());
         if (!g.empty()) {
             MPI_Allreduce(MPI_IN_PLACE, g.data(), mpi_count(g.size()), MPI_DOUBLE, MPI_SUM, comm);
@@ -528,9 +603,16 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
     auto clamp_s = [&](Index s) {
         return std::min(config.s_max, std::max(config.s_min, s));
     };
-    Index s_current = config.adaptive_s ? clamp_s(config.s_step) : config.s_step;
-    if (config.adaptive_s && config.s_initial_probe) {
+    // Reuse the accepted adaptive width where available.
+    Index s_current;
+    if (!config.adaptive_s) {
+        s_current = config.s_step;
+    } else if (carried_s > 0) {
+        s_current = clamp_s(carried_s);
+    } else if (config.s_initial_probe) {
         s_current = config.s_max;
+    } else {
+        s_current = clamp_s(config.s_step);
     }
     Index consecutive_full = 0;
 
@@ -584,7 +666,7 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
             result.residual_history.push_back(
                 {result.iterations, residual_estimate, false, requested});
 
-            if (residual_estimate < config.tolerance) {
+            if (residual_estimate < config.tolerance * initial_beta) {
                 result.converged = true;
                 break;
             }
@@ -610,6 +692,11 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
         }
     }
 
+    // Retain the final adaptive width for the next restart.
+    if (config.adaptive_s) {
+        result.adapted_s = s_current;
+    }
+
     if (bootstrapping) {
         result.bootstrap_shifts = leja_order(compute_ritz_shifts(H));
     }
@@ -624,16 +711,13 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
     const Vector y = solve_least_squares_dense(H, g);
     multiply_add_columns(basis.local_block(), total_cols, y, result.x.local_values());
 
-    // GMRES-DR restart: next cycle's deflation subspace. H is replicated, so
-    // the harmonic Ritz eigenproblem, QR and the small matmuls are identical on
-    // every rank; only V_new = V_{m+1} q is distributed (a local combination of
-    // this rank's basis columns), so no communication is needed here.
+    // Form the harmonic-Ritz subspace for the next restart.
     if (config.recycle_count > 0) {
         const std::vector<Vector> ritz = harmonic_ritz_vectors(H, 0, config.recycle_count);
         const Index kk = static_cast<Index>(ritz.size());
 
         if (kk > 0 && kk <= total_cols) {
-            const Index rows = H.size(); // total_cols + 1
+            const Index rows = H.size();
             const Vector w = residual_coefficients(H, g, y);
 
             DenseMatrix p_tilde(rows, Vector(kk + 1, 0.0));
@@ -658,7 +742,7 @@ CAGMRESMPICycleResult gmres_ca_dr_mpi_cycle(const DistributedSparseMatrixCSR& A,
                 return result;
             }
 
-            const DenseMatrix q = qr_orthonormal_columns(p_tilde); // rows x (kk+1)
+            const DenseMatrix q = qr_orthonormal_columns(p_tilde);
 
             DenseBlock v_new_local(local_rows, kk + 1);
             for (Index c = 0; c < kk + 1; ++c) {

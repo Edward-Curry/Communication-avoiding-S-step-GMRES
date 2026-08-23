@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/distributed_orthogonalization.cpp
+ * @brief Implements distributed modified Gram-Schmidt orthogonalization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/distributed_orthogonalization.hpp"
 
 #include "parallel/distributed_vector_ops.hpp"

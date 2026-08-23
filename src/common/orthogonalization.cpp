@@ -1,3 +1,11 @@
+/**
+ * @file src/common/orthogonalization.cpp
+ * @brief Implements sequential modified Gram-Schmidt orthogonalization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/orthogonalization.hpp"
 
 #include "common/vector_ops.hpp"

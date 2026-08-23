@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_arnoldi_seq.cpp
+ * @brief Tests sequential Arnoldi factorization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "sequential/arnoldi_seq.hpp"
 
 #include "common/sparse_matrix.hpp"
@@ -8,6 +16,10 @@
 #include <print>
 #include <vector>
 
+/**
+ * @brief Runs the sequential Arnoldi test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     gmres::Vector values = {
@@ -46,8 +58,7 @@ int main()
     assert(std::abs(gmres::dot(result.V[0], result.V[2])) < 1e-12);
     assert(std::abs(gmres::dot(result.V[1], result.V[2])) < 1e-12);
 
-    // H is (m + 1) x m, so here it is 3 x 2.
-    // For an upper Hessenberg matrix, entries below the first subdiagonal should be zero.
+    // Hessenberg entries below the first subdiagonal vanish.
     assert(std::abs(result.H[2][0]) < 1e-12);
 
     std::println("Sequential Arnoldi test passed.");

@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/bcgs2_cholqr.cpp
+ * @brief Implements sequential BCGS2-CholQR block orthogonalization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/bcgs2_cholqr.hpp"
 
 #include "communication_avoiding/bcgs.hpp"

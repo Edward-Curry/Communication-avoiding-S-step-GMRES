@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_gmres_ca_mpi.cpp
+ * @brief Tests distributed communication-avoiding GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/gmres_ca_mpi.hpp"
 
 #include "common/config.hpp"
@@ -15,6 +23,13 @@
 
 namespace
 {
+    /**
+     * @brief Returns the contiguous local size assigned to an MPI rank.
+     * @param global_size Global vector length.
+     * @param rank MPI rank.
+     * @param comm_size Number of MPI ranks.
+     * @return Number of locally owned entries.
+     */
     gmres::Index local_size_for_rank(gmres::Index global_size,
                                      int rank,
                                      int comm_size)
@@ -25,6 +40,13 @@ namespace
         return base + (static_cast<gmres::Index>(rank) < remainder ? 1 : 0);
     }
 
+    /**
+     * @brief Returns the first global index assigned to an MPI rank.
+     * @param global_size Global vector length.
+     * @param rank MPI rank.
+     * @param comm_size Number of MPI ranks.
+     * @return First locally owned global index.
+     */
     gmres::Index local_start_for_rank(gmres::Index global_size,
                                       int rank,
                                       int comm_size)
@@ -37,6 +59,12 @@ namespace
     }
 }
 
+/**
+ * @brief Runs the distributed CA-GMRES test.
+ * @param argc Number of command-line arguments passed to MPI.
+ * @param argv Command-line arguments passed to MPI.
+ * @return Zero when all ranks pass their assertions.
+ */
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -57,16 +85,7 @@ int main(int argc, char** argv)
     gmres::Index local_rows =
         local_size_for_rank(global_size, rank, comm_size);
 
-    // Global matrix:
-    //
-    // A = [ 4  1
-    //       1  3 ]
-    //
-    // Exact solution:
-    //
-    // x = [1, 2]
-    //
-    // b = A*x = [6, 7]
+    // Two-by-two reference system with exact solution [1, 2].
 
     gmres::Vector values;
     std::vector<gmres::Index> col_indices;
@@ -167,21 +186,20 @@ int main(int argc, char** argv)
 
     gmres::axpy_local(-1.0, Ax, residual);
 
-    assert(gmres::norm2_mpi(residual) < config.tolerance);
+    // The tolerance is relative to the initial residual.
+    const gmres::Scalar initial_residual_norm = gmres::norm2_mpi(b);
 
-    // Block recycling smoke test: restart_blocks=1, s_step=1 forces several
-    // restart cycles on this 2-dimensional system, giving a recycled subspace
-    // from one cycle's winning block a real chance to seed the next.
+    assert(gmres::norm2_mpi(residual)
+           < config.tolerance * initial_residual_norm);
+
+    // Force restart cycles so the recycled subspace is reused.
     gmres::GMRESConfig recycling_config = config;
     recycling_config.restart_blocks = 1;
     recycling_config.s_step = 1;
     recycling_config.max_iterations = 20;
     recycling_config.enable_recycling = true;
     recycling_config.recycle_count = 1;
-    // Isolate recycling from adaptive-s: on this tiny 2-dimensional system,
-    // s_initial_probe's s_max request can exactly exhaust the remaining
-    // dimensions right as a recycled subspace is seeded, an unrelated
-    // numerical edge case rather than anything specific to recycling.
+    // Isolate recycling from adaptive block selection.
     recycling_config.adaptive_s = false;
     recycling_config.s_initial_probe = false;
 
@@ -194,7 +212,8 @@ int main(int argc, char** argv)
 
     gmres::axpy_local(-1.0, Ax_recycled, residual_recycled);
 
-    assert(gmres::norm2_mpi(residual_recycled) < recycling_config.tolerance);
+    assert(gmres::norm2_mpi(residual_recycled)
+           < recycling_config.tolerance * initial_residual_norm);
 
     if (rank == 0)
     {

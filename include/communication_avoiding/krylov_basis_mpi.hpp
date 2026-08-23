@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/krylov_basis_mpi.hpp
+ * @brief Declares MPI s-step Krylov-block generation.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_KRYLOV_BASIS_MPI_HPP
 #define COMMUNICATION_AVOIDING_KRYLOV_BASIS_MPI_HPP
 
@@ -9,18 +17,24 @@
 
 namespace gmres {
 
+/**
+ * @brief Stores one generated distributed Krylov block.
+ */
 struct KrylovBlockMPIResult {
     DistributedDenseBlock block;
-    // Per-column rescale factors (ScaledNewton only); replicated (identical
-    // on every rank, since each comes from norm2_mpi). Empty for
-    // Monomial/Newton.
+    /// @brief Replicated Scaled-Newton factors, when used.
     Vector column_scales;
 };
 
-// Generates one s-step block starting from q. For Monomial, shifts is
-// ignored. For Newton/ScaledNewton, shifts supplies the (real, Leja-ordered)
-// shift sequence; if s exceeds shifts.size() the sequence is cycled from the
-// start. Newton/ScaledNewton with an empty shifts is a caller error.
+/**
+ * @brief Generates one distributed s-step Krylov block.
+ * @param A Distributed system matrix.
+ * @param q Distributed seed vector.
+ * @param s Requested block width.
+ * @param basis_type Polynomial basis type.
+ * @param shifts Replicated Leja-ordered Newton shifts when required.
+ * @return Generated distributed block and any Scaled-Newton factors.
+ */
 KrylovBlockMPIResult generate_krylov_block_mpi(const DistributedSparseMatrixCSR& A,
                                                const DistributedVector& q,
                                                Index s,

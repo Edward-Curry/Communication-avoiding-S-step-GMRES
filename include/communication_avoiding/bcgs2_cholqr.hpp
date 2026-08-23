@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/bcgs2_cholqr.hpp
+ * @brief Declares BCGS2 with CholQR.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_BCGS2_CHOLQR_HPP
 #define COMMUNICATION_AVOIDING_BCGS2_CHOLQR_HPP
 
@@ -7,8 +15,14 @@
 
 namespace gmres {
 
-// Two-pass block classical Gram-Schmidt with CholQR intra-block
-// orthonormalisation, against the leading old_cols columns of old_basis.
+/**
+ * @brief Orthogonalises a block with two BCGS passes and CholQR.
+ * @param old_basis Existing basis.
+ * @param old_cols Number of leading basis columns to use.
+ * @param input_block Block to orthogonalise.
+ * @param partial_cholesky_options Acceptance rule for the CholQR factorisation.
+ * @return Orthonormal block and recurrence factors.
+ */
 BlockOrthogonalizationResult bcgs2_cholqr(
     const DenseBlock& old_basis,
     Index old_cols,

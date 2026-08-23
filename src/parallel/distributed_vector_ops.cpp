@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/distributed_vector_ops.cpp
+ * @brief Implements local BLAS and global MPI vector operations.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/distributed_vector_ops.hpp"
 
 #include <cblas.h>
@@ -11,6 +19,11 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Converts a local dimension to the BLAS integer type.
+         * @param size Local dimension to convert.
+         * @return BLAS-compatible dimension.
+         */
         int blas_size(Index size)
         {
             if (size > static_cast<Index>(std::numeric_limits<int>::max()))

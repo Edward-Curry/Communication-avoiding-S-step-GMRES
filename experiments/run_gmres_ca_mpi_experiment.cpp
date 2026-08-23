@@ -1,3 +1,11 @@
+/**
+ * @file experiments/run_gmres_ca_mpi_experiment.cpp
+ * @brief Runs a distributed communication-avoiding GMRES experiment.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/config.hpp"
 #include "common/io.hpp"
 #include "communication_avoiding/gmres_ca_mpi.hpp"
@@ -8,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <mpi.h>
@@ -17,6 +26,11 @@
 
 namespace
 {
+    /**
+     * @brief Converts CA-GMRES residual samples to common output records.
+     * @param samples Residual samples reported by the CA-GMRES solver.
+     * @return Residual records suitable for CSV output.
+     */
     std::vector<gmres::ResidualHistoryEntry> make_ca_residual_history(
         const gmres::CAResidualHistory& samples)
     {
@@ -55,6 +69,12 @@ namespace
     }
 }
 
+/**
+ * @brief Runs the MPI CA-GMRES experiment.
+ * @param argc Number of command-line arguments.
+ * @param argv Matrix, output directory, and optional vector-file arguments.
+ * @return Collective status code for the MPI job.
+ */
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -72,6 +92,20 @@ int main(int argc, char** argv)
             argc > 1 ? argv[1] : "data/matrices/test_3x3.mtx";
         const std::filesystem::path output_directory =
             argc > 2 ? argv[2] : "data/outputs";
+        const std::string rhs_path = argc > 3 ? argv[3] : "";
+        const std::string exact_solution_path = argc > 4 ? argv[4] : "";
+        const bool has_rhs_file = !rhs_path.empty();
+        const bool has_exact_solution_file = !exact_solution_path.empty();
+        const bool has_exact_solution = has_exact_solution_file || !has_rhs_file;
+        const bool write_solution_output = argc <= 5;
+
+        if (argc > 6
+            || (argc == 6
+                && std::string(argv[5]) != "--no-solution-output"))
+        {
+            throw std::invalid_argument(
+                "Usage: run_gmres_ca_mpi_experiment <matrix> <output> [rhs] [exact_solution] [--no-solution-output]");
+        }
 
         const gmres::DistributedSparseMatrixCSR A =
             gmres::read_matrix_market_distributed(
@@ -83,21 +117,95 @@ int main(int argc, char** argv)
             throw std::runtime_error("MPI CA-GMRES requires a square matrix.");
         }
 
-        const gmres::Vector local_true_values(A.local_rows(), 1.0);
         const gmres::Vector local_initial_values(A.local_rows(), 0.0);
-        const gmres::DistributedVector x_true(
-            A.global_cols(),
-            A.local_row_start(),
-            local_true_values,
-            MPI_COMM_WORLD);
         const gmres::DistributedVector x0(
             A.global_cols(),
             A.local_row_start(),
             local_initial_values,
             MPI_COMM_WORLD);
-        const gmres::DistributedVector b = A.multiply(x_true);
+
+        gmres::DistributedVector x_true;
+
+        if (has_exact_solution)
+        {
+            if (has_exact_solution_file)
+            {
+                x_true = gmres::read_matrix_market_vector_distributed(
+                    exact_solution_path,
+                    MPI_COMM_WORLD);
+
+                if (x_true.global_size() != A.global_cols())
+                {
+                    throw std::runtime_error(
+                        "Exact solution size must match matrix columns.");
+                }
+            }
+            else
+            {
+                const gmres::Vector local_true_values(A.local_rows(), 1.0);
+                x_true = gmres::DistributedVector(
+                    A.global_cols(),
+                    A.local_row_start(),
+                    local_true_values,
+                    MPI_COMM_WORLD);
+            }
+        }
+
+        gmres::DistributedVector b;
+
+        if (has_rhs_file)
+        {
+            b = gmres::read_matrix_market_vector_distributed(
+                rhs_path,
+                MPI_COMM_WORLD);
+
+            if (b.global_size() != A.global_rows())
+            {
+                throw std::runtime_error(
+                    "Right-hand side size must match matrix rows.");
+            }
+        }
+        else
+        {
+            b = A.multiply(x_true);
+        }
 
         gmres::GMRESConfig config;
+
+        /// Allows recycle-count sweeps without rebuilding the executable.
+        if (const char* const requested = std::getenv("GMRES_RECYCLE_COUNT"))
+        {
+            const std::string text(requested);
+            std::size_t consumed = 0;
+            long long value = 0;
+            try
+            {
+                value = std::stoll(text, &consumed);
+            }
+            catch (const std::exception&)
+            {
+                consumed = 0;
+            }
+
+            if (consumed != text.size() || value < 0)
+            {
+                throw std::invalid_argument(
+                    "GMRES_RECYCLE_COUNT must be a non-negative integer, got: "
+                    + text);
+            }
+
+            config.recycle_count = static_cast<gmres::Index>(value);
+
+            /// A zero recycle count disables recycling.
+            config.enable_recycling = value > 0;
+
+            if (rank == 0)
+            {
+                std::println("Recycle count overridden: {} (deflation {})",
+                             config.recycle_count,
+                             config.enable_recycling ? "on" : "off");
+            }
+        }
 
         const gmres::Scalar initial_residual =
             gmres::residual_norm_mpi(A, b, x0);
@@ -122,17 +230,17 @@ int main(int argc, char** argv)
             gmres::residual_norm_mpi(A, b, result.x);
         const gmres::Scalar relative_residual =
             gmres::relative_residual_norm_mpi(A, b, result.x);
-        const gmres::Scalar forward_error =
-            gmres::relative_forward_error_mpi(result.x, x_true);
+        const gmres::Scalar forward_error = has_exact_solution
+            ? gmres::relative_forward_error_mpi(result.x, x_true)
+            : 0.0;
 
-        const gmres::Vector solution =
-            gmres::gather_distributed_vector(
-                result.x,
-                MPI_COMM_WORLD);
+        const gmres::Vector solution = write_solution_output
+            ? gmres::gather_distributed_vector(result.x, MPI_COMM_WORLD)
+            : gmres::Vector();
         const gmres::Vector exact_solution =
-            gmres::gather_distributed_vector(
-                x_true,
-                MPI_COMM_WORLD);
+            write_solution_output && has_exact_solution
+                ? gmres::gather_distributed_vector(x_true, MPI_COMM_WORLD)
+                : gmres::Vector();
 
         const unsigned long long local_nonzeros =
             static_cast<unsigned long long>(A.nonzeros());
@@ -145,6 +253,9 @@ int main(int argc, char** argv)
                    0,
                    MPI_COMM_WORLD);
 
+        const gmres::HaloExchangeSummary halo_exchange =
+            gmres::halo_exchange_summary_mpi(A);
+
         if (rank == 0)
         {
             gmres::GMRESExperimentData experiment;
@@ -152,9 +263,15 @@ int main(int argc, char** argv)
             experiment.solver_name = "mpi_ca_gmres";
             experiment.output_prefix = "gmres_ca_mpi";
             experiment.initial_guess_description = "all zeros";
-            experiment.exact_solution_description = "all ones";
-            experiment.right_hand_side_description =
-                "b = A * exact_solution";
+            experiment.has_exact_solution = has_exact_solution;
+            experiment.exact_solution_description = has_exact_solution_file
+                ? ("loaded from " + exact_solution_path)
+                : (has_exact_solution
+                       ? "all ones"
+                       : "unknown (right-hand side supplied directly)");
+            experiment.right_hand_side_description = has_rhs_file
+                ? ("b loaded from " + rhs_path)
+                : "b = A * exact_solution";
             experiment.rows = A.global_rows();
             experiment.cols = A.global_cols();
             experiment.nonzeros =
@@ -162,6 +279,7 @@ int main(int argc, char** argv)
             experiment.process_count =
                 static_cast<gmres::Index>(process_count);
             experiment.config = config;
+            experiment.halo_exchange = halo_exchange;
             experiment.converged = result.converged;
             experiment.iterations = result.iterations;
             experiment.blocks_completed = result.blocks_completed;
@@ -174,6 +292,7 @@ int main(int argc, char** argv)
             experiment.relative_residual = relative_residual;
             experiment.relative_forward_error = forward_error;
             experiment.solve_seconds = solve_seconds;
+            experiment.write_solution_output = write_solution_output;
 
             gmres::write_gmres_experiment_outputs(
                 output_directory,

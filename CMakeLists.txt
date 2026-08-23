@@ -1,3 +1,8 @@
+# @file CMakeLists.txt
+# @brief Defines build targets for the GMRES solvers, experiments, and tests.
+# @author Edward Curry
+# @date 2026-08-23
+
 cmake_minimum_required(VERSION 3.16)
 
 project(CommunicationAvoidingSstepGMRES LANGUAGES CXX)

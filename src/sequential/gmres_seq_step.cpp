@@ -1,3 +1,11 @@
+/**
+ * @file src/sequential/gmres_seq_step.cpp
+ * @brief Implements one sequential restarted GMRES cycle.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "sequential/gmres_seq_step.hpp"
 
 #include "common/givens.hpp"
@@ -12,6 +20,13 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Solves the leading upper-triangular GMRES system.
+         * @param H Rotated Hessenberg matrix.
+         * @param g Rotated residual right-hand side.
+         * @param k Dimension of the system.
+         * @return Coefficients of the GMRES correction.
+         */
         Vector solve_upper_triangular(const DenseMatrix& H,
                                       const Vector& g,
                                       Index k)
@@ -40,6 +55,12 @@ namespace gmres
             return y;
         }
 
+        /**
+         * @brief Applies a Krylov-basis correction to the solution.
+         * @param x Solution estimate updated in place.
+         * @param V Krylov basis vectors.
+         * @param y Correction coefficients.
+         */
         void update_solution(Vector& x,
                              const VectorList& V,
                              const Vector& y)
@@ -56,6 +77,7 @@ namespace gmres
                                      const Vector& x_start,
                                      const Vector& r_start,
                                      Scalar beta,
+                                     Scalar initial_beta,
                                      const GMRESConfig& config)
     {
         if (b.size() != A.rows())
@@ -156,7 +178,7 @@ namespace gmres
                              residual_norm);
             }
 
-            if (residual_norm < config.tolerance)
+            if (residual_norm < config.tolerance * initial_beta)
             {
                 Vector y = solve_upper_triangular(H, g, inner_iterations);
                 update_solution(result.x, V, y);

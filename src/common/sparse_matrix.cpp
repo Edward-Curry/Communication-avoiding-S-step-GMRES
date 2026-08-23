@@ -1,3 +1,11 @@
+/**
+ * @file src/common/sparse_matrix.cpp
+ * @brief Implements sequential CSR sparse matrix operations.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/sparse_matrix.hpp"
 
 #include <stdexcept>

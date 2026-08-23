@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/block_orthogonalization.hpp
+ * @brief Declares sequential block orthogonalisation.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_BLOCK_ORTHOGONALIZATION_HPP
 #define COMMUNICATION_AVOIDING_BLOCK_ORTHOGONALIZATION_HPP
 
@@ -6,6 +14,9 @@
 
 namespace gmres {
 
+/**
+ * @brief Stores a sequential block orthogonalisation result.
+ */
 struct BlockOrthogonalizationResult {
     DenseBlock Q_block;
     DenseMatrix R_old;
@@ -14,9 +25,13 @@ struct BlockOrthogonalizationResult {
     bool truncated = false;
 };
 
-// Orthogonalises input_block against the leading old_cols columns of
-// old_basis with column-wise modified Gram-Schmidt. On truncation the
-// returned R factors have exactly accepted_columns columns.
+/**
+ * @brief Orthogonalises a block with modified Gram-Schmidt.
+ * @param old_basis Existing basis.
+ * @param old_cols Number of leading basis columns to use.
+ * @param input_block Block to orthogonalise.
+ * @return Orthonormal block, recurrence factors, and acceptance status.
+ */
 BlockOrthogonalizationResult block_modified_gram_schmidt(const DenseBlock& old_basis,
                                                          Index old_cols,
                                                          const DenseBlock& input_block);

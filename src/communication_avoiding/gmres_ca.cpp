@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/gmres_ca.cpp
+ * @brief Implements sequential communication-avoiding GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/gmres_ca.hpp"
 
 #include "common/dense_block.hpp"
@@ -12,6 +20,13 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Computes the residual vector for a sequential system.
+ * @param A System matrix.
+ * @param b Right-hand side.
+ * @param x Current solution estimate.
+ * @return Residual vector b - Ax.
+ */
 Vector compute_residual(const SparseMatrixCSR& A, const Vector& b, const Vector& x)
 {
     Vector Ax = A.multiply(x);
@@ -58,34 +73,35 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
 
     Vector r = compute_residual(A, b, result.x);
     Scalar beta = norm2(r);
+    const Scalar initial_beta = beta;
 
     result.residual_history.push_back({0, beta, true});
 
-    if (beta < config.tolerance) {
+    if (beta == 0.0) {
         result.converged = true;
         return result;
     }
 
-    // GMRES-DR deflation subspace carried across restart cycles. Starts empty
-    // (k == 0), so the first cycle runs undeflated and produces the first
-    // subspace; each later cycle deflates with the previous cycle's harmonic
-    // Ritz vectors and returns a refreshed subspace. Only used when
-    // config.enable_recycling is set.
+    // Retained harmonic-Ritz subspace for optional recycling.
     DeflationSubspace deflation;
 
-    // Newton/ScaledNewton shifts, computed once (from the first cycle's
-    // Monomial-bootstrap Hessenberg) and reused for the rest of the solve.
-    // Starts empty, so the first cycle always runs in bootstrap mode when
-    // config.polynomial_basis wants Newton/ScaledNewton.
+    // Ritz shifts for Newton-type bases, established during bootstrap.
     Vector shifts;
+
+    // Adaptive block width carried across restart cycles.
+    Index carried_s = 0;
 
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
         const Scalar beta_before = beta;
 
         CAGMRESCycleResult cycle = config.enable_recycling
-            ? gmres_ca_dr_cycle(A, b, result.x, r, beta, config, deflation, shifts)
-            : gmres_ca_cycle(A, b, result.x, r, beta, config, shifts);
+            ? gmres_ca_dr_cycle(A, b, result.x, r, beta, initial_beta, config,
+                                deflation, shifts, carried_s)
+            : gmres_ca_cycle(A, b, result.x, r, beta, initial_beta, config,
+                             shifts, carried_s);
+
+        carried_s = cycle.adapted_s;
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -100,20 +116,12 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
             shifts = std::move(cycle.bootstrap_shifts);
         }
 
-        // Always verify against a freshly recomputed residual rather than
-        // trusting the cycle's internal least-squares estimate outright: over
-        // many blocks - especially across a deflated restart - the estimate can
-        // drift from the true residual, and this recompute is the safety net
-        // that catches it before reporting false convergence.
+        // Recompute the true residual before convergence testing.
         r = compute_residual(A, b, result.x);
         beta = norm2(r);
 
         if (config.enable_recycling) {
-            // Adopt this cycle's deflation subspace, unless the cycle failed to
-            // reduce the residual: a stalled or non-finite deflated restart is
-            // discarded so the next cycle falls back to plain GMRES. Self-
-            // healing keeps a poor subspace (e.g. weak harmonic Ritz vectors on
-            // a strongly non-symmetric matrix) from stalling the whole solve.
+            // Discard a recycle subspace when its cycle did not make progress.
             const bool made_progress = std::isfinite(beta) && beta < beta_before;
             deflation = made_progress ? std::move(cycle.next_deflation)
                                       : DeflationSubspace();
@@ -121,7 +129,7 @@ CAGMRESResult gmres_ca(const SparseMatrixCSR& A,
 
         result.residual_history.push_back({result.iterations, beta, true});
 
-        if (beta < config.tolerance) {
+        if (beta < config.tolerance * initial_beta) {
             result.converged = true;
             return result;
         }

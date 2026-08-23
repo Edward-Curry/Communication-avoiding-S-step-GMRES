@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/gmres_ca_mpi.cpp
+ * @brief Implements distributed communication-avoiding GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/gmres_ca_mpi.hpp"
 
 #include "communication_avoiding/gmres_ca_mpi_step.hpp"
@@ -12,6 +20,13 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Computes the distributed residual vector.
+ * @param A Distributed system matrix.
+ * @param b Distributed right-hand side.
+ * @param x Distributed solution estimate.
+ * @return Distributed residual b - Ax.
+ */
 DistributedVector compute_residual_mpi(const DistributedSparseMatrixCSR& A,
                                        const DistributedVector& b,
                                        const DistributedVector& x)
@@ -62,30 +77,35 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
 
     DistributedVector r = compute_residual_mpi(A, b, result.x);
     Scalar beta = norm2_mpi(r);
+    const Scalar initial_beta = beta;
 
     result.residual_history.push_back({0, beta, true});
 
-    if (beta < config.tolerance) {
+    if (beta == 0.0) {
         result.converged = true;
         return result;
     }
 
-    // GMRES-DR deflation subspace carried across restart cycles. Starts empty
-    // (k == 0), so the first cycle runs undeflated. Only used when
-    // config.enable_recycling is set.
+    // Retained harmonic-Ritz subspace for optional recycling.
     DistributedDeflationSubspace deflation;
 
-    // Newton/ScaledNewton shifts, computed once (from the first cycle's
-    // Monomial-bootstrap Hessenberg) and reused for the rest of the solve.
+    // Ritz shifts for Newton-type bases, established during bootstrap.
     Vector shifts;
+
+    // Adaptive block width carried across restart cycles.
+    Index carried_s = 0;
 
     while (result.iterations < config.max_iterations) {
         const Index iterations_before = result.iterations;
         const Scalar beta_before = beta;
 
         CAGMRESMPICycleResult cycle = config.enable_recycling
-            ? gmres_ca_dr_mpi_cycle(A, b, result.x, r, beta, config, deflation, shifts)
-            : gmres_ca_mpi_cycle(A, b, result.x, r, beta, config, shifts);
+            ? gmres_ca_dr_mpi_cycle(A, b, result.x, r, beta, initial_beta, config,
+                                    deflation, shifts, carried_s)
+            : gmres_ca_mpi_cycle(A, b, result.x, r, beta, initial_beta, config,
+                                 shifts, carried_s);
+
+        carried_s = cycle.adapted_s;
 
         result.x = cycle.x;
         result.blocks_completed += cycle.blocks_completed;
@@ -100,19 +120,12 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
             shifts = std::move(cycle.bootstrap_shifts);
         }
 
-        // Always verify against a freshly recomputed residual rather than
-        // trusting the cycle's internal least-squares estimate outright: over
-        // many blocks - especially across a deflated restart - the estimate can
-        // drift from the true residual, and this recompute is the safety net
-        // that catches it before reporting false convergence.
+        // Recompute the true residual before convergence testing.
         r = compute_residual_mpi(A, b, result.x);
         beta = norm2_mpi(r);
 
         if (config.enable_recycling) {
-            // Adopt this cycle's deflation subspace, unless it failed to reduce
-            // the residual: a stalled or non-finite deflated restart is
-            // discarded so the next cycle falls back to plain GMRES (self-
-            // healing against a weak subspace on hard/non-symmetric systems).
+            // Discard a recycle subspace when its cycle did not make progress.
             const bool made_progress = std::isfinite(beta) && beta < beta_before;
             deflation = made_progress ? std::move(cycle.next_deflation)
                                       : DistributedDeflationSubspace();
@@ -120,7 +133,7 @@ CAGMRESMPIResult gmres_ca_mpi(const DistributedSparseMatrixCSR& A,
 
         result.residual_history.push_back({result.iterations, beta, true});
 
-        if (beta < config.tolerance) {
+        if (beta < config.tolerance * initial_beta) {
             result.converged = true;
             return result;
         }

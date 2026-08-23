@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_gmres_seq.cpp
+ * @brief Tests sequential restarted GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "sequential/gmres_seq.hpp"
 
 #include "common/config.hpp"
@@ -9,10 +17,13 @@
 #include <print>
 #include <vector>
 
+/**
+ * @brief Runs the sequential GMRES test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
-    // A = [ 4  1
-    //       1  3 ]
+    // Two-by-two reference matrix in CSR format.
     gmres::Vector values = {
         4.0, 1.0,
         1.0, 3.0
@@ -29,8 +40,7 @@ int main()
 
     gmres::SparseMatrixCSR A(2, 2, values, col_indices, row_ptr);
 
-    // Exact solution should be x = [1, 2]
-    // because A*x = [6, 7]
+    // The right-hand side has exact solution [1, 2].
     gmres::Vector b = {6.0, 7.0};
 
     gmres::Vector x0 = {0.0, 0.0};

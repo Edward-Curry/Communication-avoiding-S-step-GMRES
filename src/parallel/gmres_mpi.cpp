@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/gmres_mpi.cpp
+ * @brief Implements distributed restarted GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/gmres_mpi.hpp"
 
 #include "parallel/distributed_vector_ops.hpp"
@@ -10,6 +18,13 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Computes the distributed residual vector.
+         * @param A Distributed system matrix.
+         * @param b Distributed right-hand side.
+         * @param x Distributed solution estimate.
+         * @return Distributed residual b - Ax.
+         */
         DistributedVector compute_residual_mpi(const DistributedSparseMatrixCSR& A,
                                                const DistributedVector& b,
                                                const DistributedVector& x)
@@ -64,6 +79,7 @@ namespace gmres
 
         DistributedVector r = compute_residual_mpi(A, b, result.x);
         Scalar beta = norm2_mpi(r);
+        const Scalar initial_beta = beta;
 
         result.residual_history.push_back(beta);
 
@@ -72,7 +88,7 @@ namespace gmres
             std::println("MPI GMRES initial residual = {}", beta);
         }
 
-        if (beta < config.tolerance)
+        if (beta == 0.0)
         {
             result.converged = true;
             return result;
@@ -94,6 +110,7 @@ namespace gmres
                                                         result.x,
                                                         r,
                                                         beta,
+                                                        initial_beta,
                                                         cycle_config);
 
             result.x = cycle.x;
@@ -120,7 +137,7 @@ namespace gmres
                 std::println("MPI GMRES restart residual = {}", beta);
             }
 
-            if (beta < config.tolerance)
+            if (beta < config.tolerance * initial_beta)
             {
                 result.converged = true;
                 return result;

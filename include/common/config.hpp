@@ -1,3 +1,11 @@
+/**
+ * @file include/common/config.hpp
+ * @brief Defines solver configuration options.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMON_CONFIG_HPP
 #define COMMON_CONFIG_HPP
 
@@ -6,93 +14,71 @@
 
 namespace gmres
 {
+    /**
+     * @brief Selects the block orthogonalisation procedure.
+     */
     enum class BlockOrthogonalizationMethod
     {
         ModifiedGramSchmidt,
         BCGS2CholQR
     };
 
+    /**
+     * @brief Selects the partial-Cholesky acceptance rule.
+     */
     enum class PartialCholeskyStoppingRule
     {
         PivotOnly,
         TriangularConditionEstimate
     };
 
+    /**
+     * @brief Stores numerical and algorithmic settings for a GMRES solve.
+     */
     struct GMRESConfig
     {
+        /// @brief Restart length for conventional GMRES.
         Index restart = 30;
-        Index max_iterations = 100000;
+        /// @brief Maximum Krylov iterations permitted by a solve.
+        Index max_iterations = 50000;
+
+        /// @brief Relative residual tolerance measured against the initial residual.
         Scalar tolerance = 1e-10;
+
+        /// @brief Maximum s-step blocks generated during one restart cycle.
         Index restart_blocks = 6;
+        /// @brief Fixed s-step width when adaptive width control is disabled.
         Index s_step = 5;
 
-        // Adaptive s-step selection. When adaptive_s is false the block width
-        // is fixed at s_step (unchanged behavior). When true, the width starts
-        // at s_step (clamped into [s_min, s_max]) and adapts per block: it
-        // shrinks toward the accepted width after a truncated/ill-conditioned
-        // block, and grows by one after s_grow_after consecutive fully
-        // accepted blocks. The width is always kept within [s_min, s_max].
+        /// @brief Enables block-width adaptation after partial-Cholesky acceptance.
         bool adaptive_s = true;
+        /// @brief Smallest block width requested by the adaptive controller.
         Index s_min = 1;
-        Index s_max = 10;
+        /// @brief Largest block width requested by the adaptive controller.
+        Index s_max = 100;
+        /// @brief Full-block count required before increasing the requested width.
         Index s_grow_after = 2;
 
-        // Initial-s estimator (requires adaptive_s). The first block of every
-        // restart cycle requests s_max columns and the condition-limited
-        // partial Cholesky decides how many are stable; the accepted count
-        // becomes the working width for the rest of the cycle (further
-        // adapted by the rules above). The probe costs no extra communication
-        // and its accepted columns are kept as regular basis vectors; only
-        // (s_max - accepted) SpMVs are wasted when the matrix cannot support
-        // s_max. When enabled, s_step no longer sets the starting width.
+        /// @brief Probes the initial usable width by requesting the configured maximum.
         bool s_initial_probe = true;
 
-        // Deflated restarting (GMRES-DR, Morgan 2002). When enabled, each
-        // restart cycle keeps the recycle_count smallest-magnitude HARMONIC
-        // RITZ vectors - approximate eigenvectors of the smallest eigenvalues,
-        // the slowest-converging directions restarting would otherwise discard
-        // and rediscover - and starts the next cycle from the subspace they
-        // span (plus the residual direction), then grows the usual s-step
-        // Krylov space on top. The carried Arnoldi relation A V = V H makes the
-        // restart free of extra matrix-vector products. This deflates the small
-        // eigenvalues out of the restarted problem, recovering much of
-        // un-restarted GMRES's convergence at restarted cost (measured: 2.7x
-        // fewer iterations on a 40^2 Laplacian, 5.4x on 80^2, up to ~19x on
-        // cdde6 - the benefit grows with problem difficulty). A stalled or
-        // numerically degenerate deflated restart self-heals: the driver
-        // discards that subspace and the next cycle falls back to plain GMRES.
-        //
-        // recycle_count is a count of VECTORS (harmonic Ritz directions), on
-        // the order of the number of small/clustered eigenvalues to deflate;
-        // larger helps more on hard/non-symmetric spectra (cdde6: 500 iters at
-        // 5, 95 at 40). Defaults to off. Works with fixed or adaptive s.
-        bool enable_recycling = false;
+        /// @brief Enables harmonic-Ritz recycling between restart cycles.
+        bool enable_recycling = true;
+        /// @brief Number of harmonic Ritz vectors retained at a restart.
         Index recycle_count = 2;
 
-        // Polynomial basis for s-step Krylov block generation. Monomial
-        // (Aq,...,A^s q) is the default; Newton/ScaledNewton use shifted
-        // products (A-theta_j I)q with theta_j real Ritz-value estimates of
-        // A, Leja-ordered for numerical stability, countering the monomial
-        // basis's tendency to collapse toward the dominant eigenvector
-        // direction as s grows (the diagonal Gram scaling in CholQR already
-        // handles the separate column-NORM-imbalance problem, for any basis
-        // type). Shifts are computed ONCE, from the first restart cycle's
-        // Hessenberg matrix (which necessarily still uses Monomial - there is
-        // no spectral information before that), and reused for the rest of
-        // the solve. ScaledNewton additionally rescales each generated column
-        // by its own norm, guarding against overflow across many shifted
-        // products; ordinary Newton does not rescale during generation
-        // (CholQR's own diagonal scaling still applies once orthogonalized).
-        // Only real Ritz values are used as shifts; a matrix with a genuinely
-        // complex spectrum yields fewer usable shifts (falling back toward
-        // Monomial for the columns whose real-shift budget runs out).
+        /// @brief Polynomial basis used to generate s-step Krylov blocks.
         PolynomialBasisType polynomial_basis = PolynomialBasisType::Monomial;
 
+        /// @brief Block orthogonalisation method.
         BlockOrthogonalizationMethod block_orthogonalization =
             BlockOrthogonalizationMethod::BCGS2CholQR;
+        /// @brief Partial-Cholesky stopping rule.
         PartialCholeskyStoppingRule partial_cholesky_stopping_rule =
             PartialCholeskyStoppingRule::TriangularConditionEstimate;
+        /// @brief Maximum accepted triangular-factor condition estimate.
         Scalar partial_cholesky_condition_limit = 1e7;
+        /// @brief Enables solver progress output.
         bool verbose = false;
     };
 }

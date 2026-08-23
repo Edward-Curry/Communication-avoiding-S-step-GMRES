@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_gmres_mpi.cpp
+ * @brief Tests distributed restarted GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/gmres_mpi.hpp"
 
 #include "common/config.hpp"
@@ -14,6 +22,13 @@
 
 namespace
 {
+    /**
+     * @brief Returns the contiguous local size assigned to an MPI rank.
+     * @param global_size Global vector length.
+     * @param rank MPI rank.
+     * @param comm_size Number of MPI ranks.
+     * @return Number of locally owned entries.
+     */
     gmres::Index local_size_for_rank(gmres::Index global_size,
                                      int rank,
                                      int comm_size)
@@ -24,6 +39,13 @@ namespace
         return base + (static_cast<gmres::Index>(rank) < remainder ? 1 : 0);
     }
 
+    /**
+     * @brief Returns the first global index assigned to an MPI rank.
+     * @param global_size Global vector length.
+     * @param rank MPI rank.
+     * @param comm_size Number of MPI ranks.
+     * @return First locally owned global index.
+     */
     gmres::Index local_start_for_rank(gmres::Index global_size,
                                       int rank,
                                       int comm_size)
@@ -36,6 +58,12 @@ namespace
     }
 }
 
+/**
+ * @brief Runs the distributed GMRES test.
+ * @param argc Number of command-line arguments passed to MPI.
+ * @param argv Command-line arguments passed to MPI.
+ * @return Zero when all ranks pass their assertions.
+ */
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -56,16 +84,7 @@ int main(int argc, char** argv)
     gmres::Index local_rows =
         local_size_for_rank(global_size, rank, comm_size);
 
-    // Global matrix:
-    //
-    // A = [ 4  1
-    //       1  3 ]
-    //
-    // Exact solution:
-    //
-    // x = [1, 2]
-    //
-    // b = A*x = [6, 7]
+    // Two-by-two reference system with exact solution [1, 2].
 
     gmres::Vector values;
     std::vector<gmres::Index> col_indices;
@@ -165,7 +184,11 @@ int main(int argc, char** argv)
 
     gmres::axpy_local(-1.0, Ax, residual);
 
-    assert(gmres::norm2_mpi(residual) < config.tolerance);
+    // The tolerance is relative to the initial residual.
+    const gmres::Scalar initial_residual_norm = gmres::norm2_mpi(b);
+
+    assert(gmres::norm2_mpi(residual)
+           < config.tolerance * initial_residual_norm);
 
     if (rank == 0)
     {

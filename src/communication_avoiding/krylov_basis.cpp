@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/krylov_basis.cpp
+ * @brief Implements sequential s-step Krylov block generation.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/krylov_basis.hpp"
 
 #include "common/vector_ops.hpp"

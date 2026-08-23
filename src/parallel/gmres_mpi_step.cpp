@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/gmres_mpi_step.cpp
+ * @brief Implements one distributed restarted GMRES cycle.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/gmres_mpi_step.hpp"
 
 #include "common/givens.hpp"
@@ -12,6 +20,13 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Solves the leading upper-triangular GMRES system.
+         * @param H Rotated Hessenberg matrix.
+         * @param g Rotated residual right-hand side.
+         * @param k Dimension of the system.
+         * @return Coefficients of the GMRES correction.
+         */
         Vector solve_upper_triangular(const DenseMatrix& H,
                                       const Vector& g,
                                       Index k)
@@ -40,6 +55,12 @@ namespace gmres
             return y;
         }
 
+        /**
+         * @brief Applies a distributed Krylov-basis correction.
+         * @param x Distributed solution estimate updated in place.
+         * @param V Distributed Krylov basis vectors.
+         * @param y Correction coefficients.
+         */
         void update_solution_mpi(DistributedVector& x,
                                  const DistributedVectorList& V,
                                  const Vector& y)
@@ -56,6 +77,7 @@ namespace gmres
                                         const DistributedVector& x_start,
                                         const DistributedVector& r_start,
                                         Scalar beta,
+                                        Scalar initial_beta,
                                         const GMRESConfig& config)
     {
         if (b.global_size() != A.global_rows())
@@ -161,7 +183,7 @@ namespace gmres
                              residual_norm);
             }
 
-            if (residual_norm < config.tolerance)
+            if (residual_norm < config.tolerance * initial_beta)
             {
                 Vector y = solve_upper_triangular(H, g, inner_iterations);
                 update_solution_mpi(result.x, V, y);

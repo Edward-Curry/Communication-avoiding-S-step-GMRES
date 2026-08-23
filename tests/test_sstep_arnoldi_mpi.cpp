@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_sstep_arnoldi_mpi.cpp
+ * @brief Tests distributed s-step Arnoldi basis construction.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/sstep_arnoldi_mpi.hpp"
 
 #include "common/types.hpp"
@@ -13,6 +21,13 @@
 
 namespace {
 
+/**
+ * @brief Returns the contiguous local size assigned to an MPI rank.
+ * @param global_size Global vector length.
+ * @param rank MPI rank.
+ * @param size Number of MPI ranks.
+ * @return Number of locally owned entries.
+ */
 gmres::Index local_size_for_rank(gmres::Index global_size, int rank, int size)
 {
     const gmres::Index base = global_size / static_cast<gmres::Index>(size);
@@ -25,6 +40,13 @@ gmres::Index local_size_for_rank(gmres::Index global_size, int rank, int size)
     return base;
 }
 
+/**
+ * @brief Returns the first global index assigned to an MPI rank.
+ * @param global_size Global vector length.
+ * @param rank MPI rank.
+ * @param size Number of MPI ranks.
+ * @return First locally owned global index.
+ */
 gmres::Index local_start_for_rank(gmres::Index global_size, int rank, int size)
 {
     gmres::Index start = 0;
@@ -36,6 +58,13 @@ gmres::Index local_start_for_rank(gmres::Index global_size, int rank, int size)
     return start;
 }
 
+/**
+ * @brief Tests two scalar values for approximate equality.
+ * @param a First value.
+ * @param b Second value.
+ * @param tolerance Permitted absolute difference.
+ * @return True when the values are within the tolerance.
+ */
 bool nearly_equal(gmres::Scalar a, gmres::Scalar b, gmres::Scalar tolerance)
 {
     return std::abs(a - b) < tolerance;
@@ -43,6 +72,12 @@ bool nearly_equal(gmres::Scalar a, gmres::Scalar b, gmres::Scalar tolerance)
 
 }
 
+/**
+ * @brief Runs the distributed s-step Arnoldi test.
+ * @param argc Number of command-line arguments passed to MPI.
+ * @param argv Command-line arguments passed to MPI.
+ * @return Zero when all ranks pass their assertions.
+ */
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -59,13 +94,7 @@ int main(int argc, char** argv)
     const Index local_rows = local_size_for_rank(global_size, rank, size);
     const Index local_start = local_start_for_rank(global_size, rank, size);
 
-    /*
-        Use diagonal matrix:
-
-        A = diag(1, 2, 3, 4)
-
-        This is simple and gives predictable distributed SpMV.
-    */
+    // A diagonal matrix gives a predictable distributed SpMV result.
     Vector values;
     std::vector<Index> col_indices;
     std::vector<Index> row_ptr;
@@ -91,10 +120,7 @@ int main(int argc, char** argv)
         MPI_COMM_WORLD
     );
 
-    /*
-        Starting vector q = [1, 1, 1, 1] / 2
-        so ||q|| = 1.
-    */
+    // The starting vector has unit Euclidean norm.
     Vector local_q_values(local_rows, 0.5);
 
     DistributedVector q(

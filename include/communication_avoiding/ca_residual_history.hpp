@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/ca_residual_history.hpp
+ * @brief Defines CA-GMRES residual-history records.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_CA_RESIDUAL_HISTORY_HPP
 #define COMMUNICATION_AVOIDING_CA_RESIDUAL_HISTORY_HPP
 
@@ -7,22 +15,21 @@
 
 namespace gmres {
 
+/**
+ * @brief Records one CA-GMRES residual observation.
+ */
 struct CAResidualSample {
     Index iteration = 0;
     Scalar residual_norm = 0.0;
-    // true when the residual was recomputed as ||b - A x||;
-    // false when it is the Givens least-squares estimate.
+    /// @brief True when residual_norm was recomputed from the current iterate.
     bool recomputed = false;
-    // s-step block width that produced this estimate (the value chosen by the
-    // adaptive-s policy for that block). 0 for the initial and restart-
-    // recomputed samples, which do not correspond to a single block.
+    /// @brief Accepted width for the associated block, or zero when not applicable.
     Index block_s = 0;
-    // true for the synthetic sample recorded right after a cycle seeds itself
-    // from a recycled subspace (before any new block is generated). block_s
-    // holds the number of recycled columns actually used (0 if none).
+    /// @brief True for a residual sample after recycled-subspace seeding.
     bool from_recycle_seed = false;
 };
 
+/// @brief Ordered collection of CA-GMRES residual observations.
 using CAResidualHistory = std::vector<CAResidualSample>;
 
 }

@@ -1,3 +1,11 @@
+/**
+ * @file src/common/utils.cpp
+ * @brief Implements residual, error, and convergence utilities.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/utils.hpp"
 
 #include "common/vector_ops.hpp"

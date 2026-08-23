@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/distributed_vector.cpp
+ * @brief Implements row-distributed vector storage.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/distributed_vector.hpp"
 
 #include <stdexcept>

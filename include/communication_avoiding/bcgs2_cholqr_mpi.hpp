@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/bcgs2_cholqr_mpi.hpp
+ * @brief Declares MPI BCGS2 with CholQR.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_BCGS2_CHOLQR_MPI_HPP
 #define COMMUNICATION_AVOIDING_BCGS2_CHOLQR_MPI_HPP
 
@@ -7,9 +15,14 @@
 
 namespace gmres {
 
-// Two-pass block classical Gram-Schmidt with CholQR intra-block
-// orthonormalisation, against the leading old_cols columns of old_basis.
-// Four MPI_Allreduce calls per block, independent of the block width.
+/**
+ * @brief Orthogonalises a distributed block with MPI BCGS2 and CholQR.
+ * @param old_basis Existing distributed basis.
+ * @param old_cols Number of leading basis columns to use.
+ * @param input_block Distributed block to orthogonalise.
+ * @param partial_cholesky_options Acceptance rule for the CholQR factorisation.
+ * @return Orthonormal distributed block and replicated recurrence factors.
+ */
 BlockOrthogonalizationMPIResult bcgs2_cholqr_mpi(
     const DistributedDenseBlock& old_basis,
     Index old_cols,

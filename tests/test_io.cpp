@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_io.cpp
+ * @brief Tests Matrix Market input and CSV output.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/io.hpp"
 #include "common/sparse_matrix.hpp"
 
@@ -5,6 +13,10 @@
 #include <cmath>
 #include <print>
 
+/**
+ * @brief Runs the input and output test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     gmres::SparseMatrixCSR A =

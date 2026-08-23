@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_bcgs2_cholqr.cpp
+ * @brief Tests BCGS2-CholQR and partial Cholesky stopping.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/bcgs2_cholqr.hpp"
 
 #include "common/vector_ops.hpp"
@@ -9,6 +17,13 @@
 
 namespace {
 
+/**
+ * @brief Tests two scalar values for approximate equality.
+ * @param left First value.
+ * @param right Second value.
+ * @param tolerance Permitted absolute difference.
+ * @return True when the values are within the tolerance.
+ */
 bool nearly_equal(gmres::Scalar left,
                   gmres::Scalar right,
                   gmres::Scalar tolerance = 1e-11)
@@ -18,6 +33,10 @@ bool nearly_equal(gmres::Scalar left,
 
 }
 
+/**
+ * @brief Runs the BCGS2-CholQR and partial Cholesky tests.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     using namespace gmres;

@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/gmres_ca_step.cpp
+ * @brief Implements plain and recycled sequential CA-GMRES cycles.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/gmres_ca_step.hpp"
 
 #include "common/dense_block.hpp"
@@ -20,6 +28,11 @@ namespace gmres {
 
 namespace {
 
+/**
+ * @brief Converts a project dimension to the LAPACK integer type.
+ * @param size Dimension to convert.
+ * @return LAPACK-compatible dimension.
+ */
 lapack_int lapack_dim(Index size)
 {
     if (size > static_cast<Index>(std::numeric_limits<lapack_int>::max())) {
@@ -29,6 +42,13 @@ lapack_int lapack_dim(Index size)
     return static_cast<lapack_int>(size);
 }
 
+/**
+ * @brief Solves a leading upper-triangular system by back substitution.
+ * @param R Upper-triangular coefficient matrix.
+ * @param g Right-hand side.
+ * @param n Dimension of the leading system.
+ * @return Solution coefficients.
+ */
 Vector solve_upper_triangular(const DenseMatrix& R, const Vector& g, Index n)
 {
     Vector y(n, 0.0);
@@ -52,10 +72,16 @@ Vector solve_upper_triangular(const DenseMatrix& R, const Vector& g, Index n)
     return y;
 }
 
-// Applies the accumulated Givens rotations to Hessenberg columns
-// [columns_rotated, total_columns) of H, writing the rotated result into R
-// and updating g and the rotation history in place. H, R and g are the
-// least-squares state of the plain (non-deflated) cycle.
+/**
+ * @brief Applies Givens rotations to newly added Hessenberg columns.
+ * @param H Unrotated Hessenberg matrix.
+ * @param R Rotated Hessenberg matrix updated in place.
+ * @param g Least-squares right-hand side updated in place.
+ * @param cosines Stored Givens cosines.
+ * @param sines Stored Givens sines.
+ * @param columns_rotated First unrotated column, updated on return.
+ * @param total_columns Number of columns to rotate.
+ */
 void fold_hessenberg_columns(const DenseMatrix& H,
                              DenseMatrix& R,
                              Vector& g,
@@ -81,16 +107,12 @@ void fold_hessenberg_columns(const DenseMatrix& H,
     columns_rotated = total_columns;
 }
 
-// Solves min_y ||g - H y||_2 for the tiny, replicated dense least-squares
-// problem of a deflated (GMRES-DR) cycle, where H has a full leading block and
-// incremental Givens does not apply. H is (rows x cols) with rows >= cols and
-// g has length rows. Returns y (length cols).
-//
-// Uses the SVD-based dgelsd (minimum-norm solution) rather than QR-based dgels:
-// the s-step monomial basis can make H numerically rank-deficient (the same
-// ill-conditioning the block orthogonalization's condition limit guards
-// against), and QR would divide by a ~zero pivot and return NaN. dgelsd
-// truncates the tiny singular values and stays finite.
+/**
+ * @brief Solves the dense least-squares problem in a recycled cycle.
+ * @param H Replicated least-squares matrix with at least as many rows as columns.
+ * @param g Replicated right-hand side.
+ * @return Minimum-norm correction coefficients.
+ */
 Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
 {
     const Index rows = H.size();
@@ -102,7 +124,7 @@ Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
 
     const Index ldb = std::max(rows, cols);
 
-    // Column-major copy for LAPACK.
+    // LAPACK expects column-major storage.
     std::vector<double> a(rows * cols, 0.0);
     for (Index j = 0; j < cols; ++j) {
         for (Index i = 0; i < rows; ++i) {
@@ -117,7 +139,7 @@ Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
 
     std::vector<double> singular_values(std::min(rows, cols), 0.0);
     lapack_int rank = 0;
-    const double rcond = 1e-12; // drop singular values below rcond * largest
+    const double rcond = 1e-12;
 
     const lapack_int info = LAPACKE_dgelsd(LAPACK_COL_MAJOR,
                                            lapack_dim(rows),
@@ -131,11 +153,7 @@ Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
                                            rcond,
                                            &rank);
 
-    // Never let a degenerate solve poison the iterate: a zero solution leaves x
-    // unchanged (no progress) rather than propagating NaN/Inf into the residual.
-    // The driver's per-cycle recompute + the deflation reset below recover from
-    // it. This happens only on pathological (rank-collapsed) H; the SPD-like
-    // problems that recycling targets stay well within dgelsd's comfort zone.
+    // A failed dense solve contributes no correction.
     Vector y(rhs.begin(), rhs.begin() + cols);
     bool y_finite = info == 0;
     for (Scalar value : y) {
@@ -150,9 +168,11 @@ Vector solve_least_squares_dense(const DenseMatrix& H, const Vector& g)
     return y;
 }
 
-// Economy QR: returns Q (rows x cols, orthonormal columns) with the same span
-// as M (rows x cols, rows >= cols). Used to orthonormalize the GMRES-DR restart
-// basis [harmonic Ritz vectors | residual direction].
+/**
+ * @brief Forms an economy QR basis for the columns of a dense matrix.
+ * @param M Matrix whose column space is orthonormalized.
+ * @return Matrix with orthonormal columns spanning the columns of M.
+ */
 DenseMatrix qr_orthonormal_columns(const DenseMatrix& M)
 {
     const Index rows = M.size();
@@ -198,8 +218,13 @@ DenseMatrix qr_orthonormal_columns(const DenseMatrix& M)
     return Q;
 }
 
-// Residual coefficient vector w = g - H y (length H.size()); its norm is the
-// least-squares residual and, in GMRES-DR, w is the extra restart direction.
+/**
+ * @brief Computes the least-squares residual coefficients.
+ * @param H Least-squares matrix.
+ * @param g Least-squares right-hand side.
+ * @param y Correction coefficients.
+ * @return Residual coefficient vector g - Hy.
+ */
 Vector residual_coefficients(const DenseMatrix& H, const Vector& g, const Vector& y)
 {
     const Index rows = H.size();
@@ -217,6 +242,15 @@ Vector residual_coefficients(const DenseMatrix& H, const Vector& g, const Vector
     return w;
 }
 
+/**
+ * @brief Validates common CA-GMRES cycle inputs.
+ * @param A System matrix.
+ * @param b Right-hand side.
+ * @param x_start Solution at cycle start.
+ * @param r_start Residual at cycle start.
+ * @param config Solver configuration.
+ * @param who Calling function name for error messages.
+ */
 void validate_cycle_inputs(const SparseMatrixCSR& A,
                            const Vector& b,
                            const Vector& x_start,
@@ -265,8 +299,10 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
                                   const Vector& x_start,
                                   const Vector& r_start,
                                   Scalar beta,
+                                  Scalar initial_beta,
                                   const GMRESConfig& config,
-                                  const Vector& shifts)
+                                  const Vector& shifts,
+                                  Index carried_s)
 {
     validate_cycle_inputs(A, b, x_start, r_start, config, "gmres_ca_cycle");
 
@@ -312,9 +348,16 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
     auto clamp_s = [&](Index s) {
         return std::min(config.s_max, std::max(config.s_min, s));
     };
-    Index s_current = config.adaptive_s ? clamp_s(config.s_step) : config.s_step;
-    if (config.adaptive_s && config.s_initial_probe) {
+    // Reuse the accepted adaptive width where available.
+    Index s_current;
+    if (!config.adaptive_s) {
+        s_current = config.s_step;
+    } else if (carried_s > 0) {
+        s_current = clamp_s(carried_s);
+    } else if (config.s_initial_probe) {
         s_current = config.s_max;
+    } else {
+        s_current = clamp_s(config.s_step);
     }
     Index consecutive_full = 0;
 
@@ -369,7 +412,7 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
             result.residual_history.push_back(
                 {result.iterations, residual_estimate, false, requested});
 
-            if (residual_estimate < config.tolerance) {
+            if (residual_estimate < config.tolerance * initial_beta) {
                 result.converged = true;
                 break;
             }
@@ -395,6 +438,11 @@ CAGMRESCycleResult gmres_ca_cycle(const SparseMatrixCSR& A,
         }
     }
 
+    // Retain the final adaptive width for the next restart.
+    if (config.adaptive_s) {
+        result.adapted_s = s_current;
+    }
+
     if (bootstrapping) {
         result.bootstrap_shifts = leja_order(compute_ritz_shifts(H));
     }
@@ -417,9 +465,11 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
                                      const Vector& x_start,
                                      const Vector& r_start,
                                      Scalar beta,
+                                     Scalar initial_beta,
                                      const GMRESConfig& config,
                                      const DeflationSubspace& deflation,
-                                     const Vector& shifts)
+                                     const Vector& shifts,
+                                     Index carried_s)
 {
     validate_cycle_inputs(A, b, x_start, r_start, config, "gmres_ca_dr_cycle");
 
@@ -451,8 +501,7 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
         ? std::max(config.s_step, config.s_max)
         : config.s_step;
 
-    // Deflated start uses up to recycle_count+1 seed columns; the block loop
-    // adds restart_blocks worth of new columns on top.
+    // Reserve recycled seeds and new block directions.
     const Index capacity = (config.recycle_count + 1) + config.restart_blocks * s_cap;
 
     DenseBlock basis(n, capacity + 1);
@@ -462,9 +511,7 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
         config.partial_cholesky_condition_limit
     };
 
-    // Least-squares state grows as blocks are appended: H is (basis_cols) x
-    // (basis_cols-1), g has length basis_cols. In a deflated cycle the leading
-    // k columns of H are full (from Hbar), so we re-solve densely each block.
+    // Recycled cycles use dense least-squares updates.
     DenseMatrix H;
     Vector g;
     Index basis_cols = 0;
@@ -478,9 +525,7 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
 
         H = deflation.Hbar; // (k+1) x k, satisfies A V(:,0:k) = V(:,0:k+1) Hbar.
 
-        // RHS = V(:,0:k+1)^T r_start. In exact arithmetic r_start lies in
-        // span(V), so this recovers the residual coordinates; recomputing from
-        // the actual residual keeps it honest against drift.
+        // Project the current residual onto the retained basis.
         g = transpose_multiply_vector(basis, k + 1, r_start);
 
         deflated_start = std::all_of(g.begin(), g.end(),
@@ -494,9 +539,7 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
     }
 
     if (!deflated_start) {
-        // No deflation, or a degraded subspace that produced a non-finite RHS:
-        // fall back to a plain undeflated restart this cycle (and, via the empty
-        // next_deflation, let the driver discard the bad subspace).
+        // Use an ordinary restart if the retained projection is invalid.
         H.assign(1, Vector());
         g.assign(1, 0.0);
         g[0] = beta;
@@ -510,9 +553,16 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
     auto clamp_s = [&](Index s) {
         return std::min(config.s_max, std::max(config.s_min, s));
     };
-    Index s_current = config.adaptive_s ? clamp_s(config.s_step) : config.s_step;
-    if (config.adaptive_s && config.s_initial_probe) {
+    // Reuse the accepted adaptive width where available.
+    Index s_current;
+    if (!config.adaptive_s) {
+        s_current = config.s_step;
+    } else if (carried_s > 0) {
+        s_current = clamp_s(carried_s);
+    } else if (config.s_initial_probe) {
         s_current = config.s_max;
+    } else {
+        s_current = clamp_s(config.s_step);
     }
     Index consecutive_full = 0;
 
@@ -554,7 +604,7 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
             }
 
             basis_cols += block_result.accepted_columns;
-            g.resize(H.size(), 0.0); // new Arnoldi rows carry a zero RHS entry.
+            g.resize(H.size(), 0.0); // New Arnoldi rows have zero RHS entries.
         }
 
         result.blocks_completed += 1;
@@ -566,7 +616,7 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
             result.residual_history.push_back(
                 {result.iterations, residual_estimate, false, requested});
 
-            if (residual_estimate < config.tolerance) {
+            if (residual_estimate < config.tolerance * initial_beta) {
                 result.converged = true;
                 break;
             }
@@ -592,6 +642,11 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
         }
     }
 
+    // Retain the final adaptive width for the next restart.
+    if (config.adaptive_s) {
+        result.adapted_s = s_current;
+    }
+
     if (bootstrapping) {
         result.bootstrap_shifts = leja_order(compute_ritz_shifts(H));
     }
@@ -606,19 +661,16 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
     const Vector y = solve_least_squares_dense(H, g);
     multiply_add_columns(basis, total_cols, y, result.x);
 
-    // GMRES-DR restart: next cycle's deflation subspace from the k' smallest
-    // harmonic Ritz vectors plus the residual direction. basis(:,0:total_cols+1)
-    // is V_{m+1}; H is the (total_cols+1) x total_cols Hessenberg (full leading
-    // block, Hessenberg tail).
+    // Form the harmonic-Ritz subspace for the next restart.
     if (config.recycle_count > 0) {
         const std::vector<Vector> ritz = harmonic_ritz_vectors(H, 0, config.recycle_count);
         const Index kk = static_cast<Index>(ritz.size());
 
         if (kk > 0 && kk <= total_cols) {
-            const Index rows = H.size(); // total_cols + 1
+            const Index rows = H.size();
             const Vector w = residual_coefficients(H, g, y);
 
-            // P~ = [ [g_1;0] ... [g_kk;0]  w ], (total_cols+1) x (kk+1).
+            // Combine selected Ritz directions with the residual direction.
             DenseMatrix p_tilde(rows, Vector(kk + 1, 0.0));
             for (Index c = 0; c < kk; ++c) {
                 for (Index i = 0; i < total_cols; ++i) {
@@ -638,15 +690,12 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
                 }
             }
             if (!p_tilde_finite) {
-                // Numerically degenerate restart (e.g. a rank-collapsed s-step
-                // basis): skip updating the deflation subspace this cycle and
-                // keep the previous one rather than crash on a NaN restart.
+                // Skip an invalid recycle-space update.
                 return result;
             }
 
-            const DenseMatrix q = qr_orthonormal_columns(p_tilde); // rows x (kk+1)
+            const DenseMatrix q = qr_orthonormal_columns(p_tilde);
 
-            // V_new = V_{m+1} * q  -> n x (kk+1); basis has `rows` valid columns.
             DenseBlock v_new(n, kk + 1);
             for (Index c = 0; c < kk + 1; ++c) {
                 Vector q_col(rows, 0.0);
@@ -658,7 +707,6 @@ CAGMRESCycleResult gmres_ca_dr_cycle(const SparseMatrixCSR& A,
                 v_new.set_column(c, column);
             }
 
-            // Hbar_new = q^T H q_top, q_top = q(0:total_cols, 0:kk).
             DenseMatrix h_q(rows, Vector(kk, 0.0));
             for (Index i = 0; i < rows; ++i) {
                 for (Index c = 0; c < kk; ++c) {

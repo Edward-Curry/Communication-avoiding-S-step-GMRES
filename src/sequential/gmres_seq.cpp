@@ -1,3 +1,11 @@
+/**
+ * @file src/sequential/gmres_seq.cpp
+ * @brief Implements sequential restarted GMRES.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "sequential/gmres_seq.hpp"
 
 #include "common/vector_ops.hpp"
@@ -10,6 +18,13 @@ namespace gmres
 {
     namespace
     {
+        /**
+         * @brief Computes the residual vector for a sequential system.
+         * @param A System matrix.
+         * @param b Right-hand side.
+         * @param x Current solution estimate.
+         * @return Residual vector b - Ax.
+         */
         Vector compute_residual(const SparseMatrixCSR& A,
                                 const Vector& b,
                                 const Vector& x)
@@ -58,6 +73,7 @@ namespace gmres
 
         Vector r = compute_residual(A, b, result.x);
         Scalar beta = norm2(r);
+        const Scalar initial_beta = beta;
 
         result.residual_history.push_back(beta);
 
@@ -66,7 +82,7 @@ namespace gmres
             std::println("GMRES initial residual = {}", beta);
         }
 
-        if (beta < config.tolerance)
+        if (beta == 0.0)
         {
             result.converged = true;
             return result;
@@ -88,6 +104,7 @@ namespace gmres
                                                      result.x,
                                                      r,
                                                      beta,
+                                                     initial_beta,
                                                      cycle_config);
 
             result.x = cycle.x;
@@ -114,7 +131,7 @@ namespace gmres
                 std::println("GMRES restart residual = {}", beta);
             }
 
-            if (beta < config.tolerance)
+            if (beta < config.tolerance * initial_beta)
             {
                 result.converged = true;
                 return result;

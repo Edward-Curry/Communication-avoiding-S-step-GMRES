@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/sstep_arnoldi_mpi.cpp
+ * @brief Implements distributed s-step Arnoldi block construction.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/sstep_arnoldi_mpi.hpp"
 
 #include "communication_avoiding/bcgs2_cholqr_mpi.hpp"

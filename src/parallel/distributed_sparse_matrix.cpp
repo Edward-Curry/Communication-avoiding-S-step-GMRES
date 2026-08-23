@@ -1,3 +1,11 @@
+/**
+ * @file src/parallel/distributed_sparse_matrix.cpp
+ * @brief Implements distributed CSR sparse matrix operations and halo exchange.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "parallel/distributed_sparse_matrix.hpp"
 
 #include <algorithm>
@@ -13,6 +21,12 @@ namespace
 {
     using WireIndex = std::uint64_t;
 
+    /**
+     * @brief Converts an MPI count after checking the MPI integer range.
+     * @param value Count to convert.
+     * @param description Name used in a range-error message.
+     * @return MPI-compatible integer count.
+     */
     int checked_int(gmres::Index value, const char* description)
     {
         if (value > static_cast<gmres::Index>(std::numeric_limits<int>::max()))
@@ -128,6 +142,22 @@ namespace gmres
     MPI_Comm DistributedSparseMatrixCSR::communicator() const
     {
         return comm_;
+    }
+
+    HaloExchangeStatistics DistributedSparseMatrixCSR::halo_exchange_statistics() const
+    {
+        if (!halo_plan_.initialized)
+        {
+            throw std::logic_error(
+                "Halo exchange statistics are unavailable before the first matrix-vector product.");
+        }
+
+        return {
+            static_cast<Index>(halo_plan_.recv_ranks.size()),
+            static_cast<Index>(halo_plan_.send_ranks.size()),
+            halo_plan_.remote_value_count,
+            static_cast<Index>(halo_plan_.send_local_indices.size())
+        };
     }
 
     void DistributedSparseMatrixCSR::initialize_halo_plan(const DistributedVector& x) const

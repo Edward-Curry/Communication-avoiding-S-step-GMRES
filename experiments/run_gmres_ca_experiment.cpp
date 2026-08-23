@@ -1,3 +1,11 @@
+/**
+ * @file experiments/run_gmres_ca_experiment.cpp
+ * @brief Runs a sequential communication-avoiding GMRES experiment.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/config.hpp"
 #include "common/io.hpp"
 #include "common/sparse_matrix.hpp"
@@ -15,6 +23,11 @@
 
 namespace
 {
+    /**
+     * @brief Converts CA-GMRES residual samples to common output records.
+     * @param samples Residual samples reported by the CA-GMRES solver.
+     * @return Residual records suitable for CSV output.
+     */
     std::vector<gmres::ResidualHistoryEntry> make_ca_residual_history(
         const gmres::CAResidualHistory& samples)
     {
@@ -53,6 +66,12 @@ namespace
     }
 }
 
+/**
+ * @brief Runs the sequential CA-GMRES experiment.
+ * @param argc Number of command-line arguments.
+ * @param argv Matrix and optional output-directory arguments.
+ * @return Zero on success and one when the experiment fails.
+ */
 int main(int argc, char** argv)
 {
     const std::string matrix_path =

@@ -1,3 +1,11 @@
+/**
+ * @file tests/test_orthogonalization.cpp
+ * @brief Tests modified Gram-Schmidt orthogonalization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/orthogonalization.hpp"
 #include "common/vector_ops.hpp"
 
@@ -6,6 +14,10 @@
 #include <print>
 #include <vector>
 
+/**
+ * @brief Runs the orthogonalization test.
+ * @return Zero when all assertions pass.
+ */
 int main()
 {
     std::vector<gmres::Vector> basis = {

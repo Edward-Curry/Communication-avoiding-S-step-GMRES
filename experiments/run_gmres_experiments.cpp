@@ -1,3 +1,11 @@
+/**
+ * @file experiments/run_gmres_experiments.cpp
+ * @brief Runs a sequential GMRES experiment and writes result files.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "common/config.hpp"
 #include "common/io.hpp"
 #include "common/sparse_matrix.hpp"
@@ -12,6 +20,12 @@
 #include <stdexcept>
 #include <string>
 
+/**
+ * @brief Runs the sequential experiment.
+ * @param argc Number of command-line arguments.
+ * @param argv Matrix and optional output-directory arguments.
+ * @return Zero on success and one when the experiment fails.
+ */
 int main(int argc, char** argv)
 {
     const std::string matrix_path =

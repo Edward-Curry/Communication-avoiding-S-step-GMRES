@@ -1,3 +1,11 @@
+/**
+ * @file src/communication_avoiding/bcgs_mpi.cpp
+ * @brief Implements one distributed BCGS projection pass.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "communication_avoiding/bcgs_mpi.hpp"
 
 #include <limits>

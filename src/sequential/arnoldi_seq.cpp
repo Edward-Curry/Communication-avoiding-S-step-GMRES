@@ -1,3 +1,11 @@
+/**
+ * @file src/sequential/arnoldi_seq.cpp
+ * @brief Implements sequential Arnoldi factorization.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #include "sequential/arnoldi_seq.hpp"
 
 #include "common/orthogonalization.hpp"

@@ -1,3 +1,11 @@
+/**
+ * @file include/communication_avoiding/sstep_arnoldi.hpp
+ * @brief Declares sequential s-step Arnoldi blocks.
+ * @author Edward Curry
+ * @date 2026-08-23
+ * @details Last updated by Edward Curry on 2026-08-23.
+ */
+
 #ifndef COMMUNICATION_AVOIDING_SSTEP_ARNOLDI_HPP
 #define COMMUNICATION_AVOIDING_SSTEP_ARNOLDI_HPP
 
@@ -11,22 +19,33 @@
 
 namespace gmres {
 
+/**
+ * @brief Stores one sequential s-step Arnoldi block.
+ */
 struct SStepArnoldiResult {
     DenseBlock Q_block;
     DenseMatrix R_old;
     DenseMatrix R_block;
     Index accepted_columns = 0;
     bool truncated = false;
-    // Shift/scale values actually used for the accepted columns (empty for
-    // Monomial). Needed by append_shifted_hessenberg_block for Newton/
-    // ScaledNewton; sized to accepted_columns, not the requested width.
+    /// @brief Newton shifts used by accepted columns.
     Vector used_shifts;
+    /// @brief Scaled-Newton factors used by accepted columns.
     Vector used_scales;
 };
 
-// Generates and orthogonalises one s-step Krylov block, starting from the
-// last of the leading basis_cols columns of basis. shifts is ignored for
-// Monomial; required (nonempty) for Newton/ScaledNewton.
+/**
+ * @brief Generates and orthogonalises one sequential s-step block.
+ * @param A System matrix.
+ * @param basis Current basis storage.
+ * @param basis_cols Number of active leading basis columns.
+ * @param s Requested block width.
+ * @param basis_type Polynomial basis type.
+ * @param method Block orthogonalisation method.
+ * @param partial_cholesky_options Acceptance rule for CholQR.
+ * @param shifts Newton shifts when required.
+ * @return Accepted orthonormal block and recurrence data.
+ */
 SStepArnoldiResult sstep_arnoldi_block(const SparseMatrixCSR& A,
                                        const DenseBlock& basis,
                                        Index basis_cols,
